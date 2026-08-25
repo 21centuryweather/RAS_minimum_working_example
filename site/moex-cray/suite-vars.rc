@@ -1,0 +1,7 @@
+{% set PORT_FILES = true %}
+{% set KGO_DIR = "/data/users/claudio.sanchez/RAS_KGOs_provisional/" %}
+{# 
+The line below could be removed and replaced it by centralized ancils or 
+transforms for LCT from global suite.
+#}
+{% set TRANSFORM_DIR = "/data/scratch/claudio.sanchez/ancildir/transforms" %}

@@ -1,0 +1,28 @@
+{# Do MASK and OROG #}
+{% if regn["std_model"] == "custom" %}
+            {{ancil(regn, resln)}}_top => \
+{% else%}
+            {{ancil(regn, resln)}}_nocustom  => \
+{% endif %}
+            {{ancil(regn, resln)}}_cap_mask => \
+            {{ancil(regn, resln)}}_cap_orog => {{ancil(regn, resln)}}_cap_vegfrac => \
+            {{ancil(regn, resln)}}_versions
+
+{# DO 3-D ancils #}
+{% if resln["3D_ancils"] %}
+    {% for acl in AERO_CLIMS %}
+            {{ancil(regn, resln)}}_cap_mask => \
+            {{ancil(regn, resln)}}_cap_{{acl}} => {{ancil(regn, resln)}}_versions
+    {% endfor %}
+{% endif %}
+
+{# DO Dust #}
+{% if resln["arcl_dust_anc"] %}
+            {{ancil(regn, resln)}}_cap_mask => \
+            {{ancil(regn, resln)}}_cap_dust => {{ancil(regn, resln)}}_versions
+{% endif %}
+
+{# Snow free albedo #}
+{% if resln["alb_anc"] %}      
+            {{ancil(regn, resln)}}_cap_orog => {{ancil(regn, resln)}}_cap_land => {{ancil(regn, resln)}}_versions
+{% endif %}

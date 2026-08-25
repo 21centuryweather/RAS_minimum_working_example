@@ -1,0 +1,94 @@
+{# Link files to use on local or slurm #}
+install_cold_idl => install_cold_hpc
+
+{# Ancillary generation for each region and resolution #}
+{% for regn in REGNS %}
+   {% for resln in regn["reslns"] %}
+
+         {# Set-up links to necessary files and executables #}
+            install_cold_hpc => \
+
+         {#Define if custom or nocustom, this should be revised
+         and simplified when ancil_top is replaced"
+         #}     
+      {% if regn["std_model"] == "custom" %}
+            {{ancil(regn, resln)}}_top
+      {% else%}
+            {{ancil(regn, resln)}}_nocustom
+      {% endif %}
+
+      {% if USE_ANTS %}
+         {# Generate IBGP mask for ANTS vegfrac
+         if CCI_MASK if F #}
+         {% if not CCI_MASK %}
+            {% if regn["std_model"] == "custom" %}
+               {{ancil(regn, resln)}}_top => \
+            {% else%}
+               {{ancil(regn, resln)}}_nocustom  => \
+            {% endif %}
+               {{ancil(regn, resln)}}_cap_mask => {{ancil(regn, resln)}}_lct_vegfrac_only
+            {% if resln["mask_overrides"]  %}
+               {{ancil(regn, resln)}}_cap_mask => {{ancil(regn, resln)}}_mask_overrides
+            {% endif %}
+         {% endif %}
+         {# Include ANTS specific ancils #}
+         %include suite-graph/ants.rc
+      {% else %}
+         {# Include CAP specific ancils #}
+         %include suite-graph/cap.rc
+      {% endif %}
+
+      {# Make OZONE #}
+      {% if resln["3D_ancils"] %}
+            {{ancil(regn, resln)}}_cap_orog => \
+            {{ancil(regn, resln)}}_cap_ozone => \
+            {# OZONE PREPROC.Ad-hoc fix for ozone ancil datetime 
+               TO BE REMOVED once ported from CAP to ANTS
+            #}
+            {{ancil(regn, resln)}}_fix_time_cap_ozone => \
+            {{ancil(regn, resln)}}_versions
+      {% endif %}
+      
+      {# SMC, needs checking for ITE #}
+      {% if resln["sstsmc_anc"]%}
+            {{ancil(regn, resln)}}_cap_orog => {{ancil(regn, resln)}}_cap_vegfrac => \
+            {{ancil(regn, resln)}}_cap_smcsnow & {{ancil(regn, resln)}}_cap_sstice => {{ancil(regn, resln)}}_versions
+      {% endif %}
+
+      {# Create UKCA ancils #}
+      {% if USE_UKCA %}
+         {% if not UKCA_FROM_ANTS %}
+         {% if regn["std_model"] == "custom" %}
+            {{ancil(regn, resln)}}_top => \
+         {% else%}
+            {{ancil(regn, resln)}}_nocustom  => \
+         {% endif %}
+            {{ancil(regn, resln)}}_cap_mask_nolakes => \
+            {{ancil(regn, resln)}}_cap_sulpdms => {{ancil(regn, resln)}}_cap_chloro & \
+            {% if USE_ANTS %}
+               {{ancil(regn, resln)}}_biom => \
+            {% else %}
+               {{ancil(regn, resln)}}_cap_biom => \
+            {% endif %}
+            {{ancil(regn, resln)}}_ukca_s & {{ancil(regn, resln)}}_ukca_c & \
+            {{ancil(regn, resln)}}_ukca_ox => {{ancil(regn, resln)}}_versions
+         {% endif %} {# if not UKCA_FROM_ANTS #}
+      {% endif %}
+
+      {# do KGO tests #}
+      {% if KGO_TEST %}
+            {{ancil(regn, resln)}}_versions => rose_ana_{{ancil(regn, resln)}}
+      {% endif %}
+
+      {# Do archiving #}
+      {% if ARCHIVE_ANCILS %}
+            {{ancil(regn, resln)}}_versions => {{ancil(regn, resln)}}_archive
+      {% endif %}
+
+   {% endfor %}
+{% endfor %}
+
+{% if MAKE_LFRIC %}
+{# Include LFRIC specific ancils #}
+%include suite-graph/lfric.rc
+{% endif %}

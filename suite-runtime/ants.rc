@@ -1,0 +1,397 @@
+    [[ANCIL_ANTS]]
+        # ANTS Program tasks.
+        inherit = ANCIL
+        [[[environment]]]
+            ANTS_VERSION = 2.1.0
+            ANTS_MODULE =  ants/2.1.0
+            CONTRIB_APPS = $CYLC_SUITE_RUN_DIR/share/contrib_apps
+            PATH_PREPEND = $CYLC_SUITE_RUN_DIR/share/fcm_make_ants/build/bin
+            PYTHONPATH_PREPEND = $CYLC_SUITE_RUN_DIR/share/fcm_make_ants/build/lib
+            ANCIL_MASTER=~/$ROSE_SUITE_DIR_REL/share/data/etc/ancil_master_ants/
+            ANCIL_PREPROC_PATH = $ROSE_DATA/etc/ants_preproc
+            TRANSFORM_DIR={{TRANSFORM_DIR}}
+
+    {# Equivalent for UG-ANTS, restructure to a different file once ants.rc is splitted 
+       in follow on tickets #}
+    [[ANCIL_UGANTS]]
+        # UG-ANTS Program tasks.
+        inherit = ANCIL
+        [[[environment]]]        
+            UG_ANTS_VERSION = 0.2.0
+            UG_ANTS_MODULE = ugants/0.2.0
+            PATH_PREPEND = $CYLC_SUITE_RUN_DIR/share/fcm_make_ug_ants/build/bin
+            PYTHONPATH_PREPEND = $CYLC_SUITE_RUN_DIR/share/fcm_make_ug_ants/build/lib
+            UG_CONTRIB_APPS = $CYLC_SUITE_RUN_DIR/share/ugcontrib_apps
+
+   [[ANCIL_CPDIR]]
+        inherit = ANCIL_ANTS, HOST_ANTS_SERIAL
+
+   [[install_ants]]
+        inherit = ANCIL_ANTS, REALLY_SMALL_JOB
+
+    {# Equivalent for UG-ANTS, restructure to a different file once ants.rc is splitted 
+       in follow on tickets #}
+    [[install_ugants]]
+        inherit = ANCIL_UGANTS, REALLY_SMALL_JOB
+
+    [[ANCIL_LCT]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+
+    [[ANCIL_LCT_WC]]
+        inherit = ANCIL_LCT
+
+    [[ANCIL_AERO]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_general_aero
+
+    [[ANCIL_SNOWFREE_ALBEDO]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_snowfree_albedo
+
+    [[ANCIL_SOIL_ALBEDO]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+
+    [[ANCIL_SOIL_DUST]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+
+    [[ANCIL_SOIL_ROUGHNESS]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+
+    [[ANCIL_TOPOGRAPHIC_INDEX]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_topographic_index
+
+    [[ANCIL_VEG_FUNC]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+
+    [[ANCIL_CLIM_SEA]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_clim_sea
+
+    [[ANCIL_LAKE]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_lake
+
+    [[ANCIL_MORUSES]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_lct_postproc_moruses
+
+    [[ANCIL_MEAN_OROG]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_mean_orog
+    
+    [[ANCIL_MEAN_OROG_SMOOTH]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_mean_orog_smooth
+
+    [[ANCIL_CLIM_AEROSOL]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_clim_aerosol
+
+     [[MASK_OVERRIDES]]
+        inherit = ANCIL_ANTS, HOST_ANTS_SERIAL
+
+{# Loop over regions and resolutions and make new ancillaries as required #}
+{% for regn in REGNS %}
+    {% for resln in regn["reslns"] %}
+
+        {% if PORT_FILES %}
+    [[{{ancil(regn, resln)}}_cpdir]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CPDIR
+        script="""
+               mkdir -p {{resln["ancildir"]}}
+               cd {{resln["ancildir"]}}
+               scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/*.nl .
+               scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/{{resln["levset"]}} .
+               """
+        {% endif %}
+
+    {# LCT for VEGFRAC (and MASK if CCI_MASK) #}
+        {% if CCI_MASK %}
+    [[{{ancil(regn, resln)}}_lct]]
+        inherit = {{ancil(regn, resln)}},ANCIL_LCT
+            {# Port mask if not mask editing #}
+        post-script = """
+                    [ "$(readlink {{resln["ancildir"]}}/qrparm.mask)" ] || mv {{resln["ancildir"]}}/qrparm.mask {{resln["ancildir"]}}/{{qrparm_mask}}
+                    mv -f {{resln["ancildir"]}}/qrparm.mask.nc {{resln["ancildir"]}}/{{qrparm_mask}}.nc
+                    {% if not resln["mask_overrides"] %}
+                        {% if PORT_FILES%}
+                    scp {{resln["ancildir"]}}/{{qrparm_mask}} $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/.
+                    ssh $(rose host-select $HPC_HOST) "cd ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}} && ln -sf {{qrparm_mask}} qrparm.mask"
+                        {% endif %}
+                    cd {{resln["ancildir"]}} && ln -sf {{qrparm_mask}} qrparm.mask
+                    {% endif %}
+                      """
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_lct
+        {% endif %}
+
+    {# LCT for VEGFRAC #}
+    {# vegfrac only needed then mask comes from igbp, or if the vegfrac needs remaking after editing the LSM  #}
+        {% if not CCI_MASK or resln["mask_overrides"] %}
+    [[{{ancil(regn, resln)}}_lct_vegfrac_only]]
+        inherit = {{ancil(regn, resln)}},ANCIL_LCT
+        {# Copy IGBP mask from HPC to Linux #}
+            {% if PORT_FILES %}
+        pre-script= scp -r $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/{{qrparm_mask}} {{resln["ancildir"]}}/{{qrparm_mask}}
+            {% endif %}
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_lct
+            ROSE_APP_OPT_CONF_KEYS = vegfrac_only
+            TARGET_LSM = {{resln["ancildir"]}}/{{qrparm_mask}}
+            OUTPUT_VEGFRAC = {{resln["ancildir"]}}/{{qrparm_vegfrac}}_pre_c4
+        {% endif %}
+
+        {# MASK EDITING #}
+        {% if resln["mask_overrides"] %}
+    [[{{ancil(regn, resln)}}_mask_overrides]]
+        inherit = {{ancil(regn, resln)}}, MASK_OVERRIDES
+        script = """ 
+            {% if not CCI_MASK and PORT_FILES%}
+                 scp -r $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/{{qrparm_mask}} {{resln["ancildir"]}}/{{qrparm_mask}}
+            {% endif %}
+                 mule-editmask genancil {{resln["ancildir"]}}/{{qrparm_mask}} {{resln["mask_overrides_file"]}} {{resln["ancildir"]}}/{{qrparm_mask}}.edit
+                 mv {{resln["ancildir"]}}/{{qrparm_mask}}.edit {{resln["ancildir"]}}/{{qrparm_mask}}
+                 """
+        post-script = """
+            {% if PORT_FILES %}
+                      scp {{resln["ancildir"]}}/{{qrparm_mask}} $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/
+                      ssh $(rose host-select $HPC_HOST) "cd ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}} && ln -sf {{qrparm_mask}} qrparm.mask"
+            {% endif %}
+                      cd {{resln["ancildir"]}} && ln -sf {{qrparm_mask}} qrparm.mask
+                      """
+        {% endif %}
+
+    {# Merge WorldCover for urban tile #}
+    {% if WC_URBAN %}
+    [[{{ancil(regn, resln)}}_lct_postproc_wc_urban]]
+        inherit = {{ancil(regn, resln)}},ANCIL_LCT_WC
+        [[[environment]]]
+           ROSE_TASK_APP = ancil_lct_postproc_wc_urban
+           TARGET_VEGFRAC={{qrparm_vegfrac}}
+           TARGET_LSM={{qrparm_mask}}
+    {% endif %}
+
+    {# Add C4 class #}
+    [[{{ancil(regn, resln)}}_lct_postproc_c4]]
+        inherit = {{ancil(regn, resln)}},ANCIL_LCT
+        post-script ="""
+                    {% if PORT_FILES %}
+                    scp {{resln["ancildir"]}}/{{qrparm_vegfrac}} $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/.
+                    ssh $(rose host-select $HPC_HOST) "cd ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}} && ln -sf {{qrparm_vegfrac}} qrparm.veg.frac"
+                    {% endif %}
+                    cd {{resln["ancildir"]}} && ln -sf {{qrparm_vegfrac}} qrparm.veg.frac &&  ln -sf {{qrparm_vegfrac}}.nc qrparm.veg.frac.nc
+                     """
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_lct_postproc_c4
+            TARGET_VEGFRAC={{qrparm_vegfrac}}
+            TARGET_LSM={{qrparm_mask}}
+
+        {% if resln["orog_srtm"] %}
+    [[{{ancil(regn, resln)}}_mean_orog]]
+        inherit = {{ancil(regn, resln)}},ANCIL_MEAN_OROG
+        pre-script=mkdir -p {{resln["ancildir"]}}/orog_srtm/
+        [[[environment]]]
+            FILE_SRTM_CONCAT={{resln["ancildir"]}}/orog_srtm/SRTM_concat.nc
+            TARGET_LSM={{qrparm_mask}}
+    
+    {# Smooth the mean orography #}
+    [[{{ancil(regn, resln)}}_mean_orog_smooth]]
+        inherit = {{ancil(regn, resln)}},ANCIL_MEAN_OROG_SMOOTH
+        post-script = """
+                      # Remove netcdf files
+                       rm -f $FILE_SRTM_CONCAT
+                       rm -f {{resln["ancildir"]}}/orog_srtm/qrparm.orog.srtm*.nc
+                    {% if PORT_FILES %}
+                      # Porting files
+                      ssh $(rose host-select $HPC_HOST) "mkdir -p  ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/orog_srtm/"
+                      scp {{resln["ancildir"]}}/orog_srtm/qrparm.orog.srtm* $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/orog_srtm/
+                    {% endif %}
+                      # Pick smoothing for default qrparm.orog.mn #
+                      {% if resln["srtm_smooth"] == "raymond" %}
+                        {% set OROGMN_FILE = "qrparm.orog.srtm.raymond.8" %}
+                      {% elif resln["srtm_smooth"] == "121" %}
+                        {% set OROGMN_FILE = "qrparm.orog.srtm.121x1" %}
+                      {% endif %}
+                    {% if PORT_FILES %}
+                      ssh $(rose host-select $HPC_HOST) "cd ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}} && ln -sf orog_srtm/{{OROGMN_FILE}} qrparm.orog.mn"
+                    {% else %}
+                      cd {{resln["ancildir"]}} && ln -sf orog_srtm/{{OROGMN_FILE}} qrparm.orog.mn
+                    {% endif %}
+                      """
+        [[[environment]]]
+            FILE_SRTM_CONCAT={{resln["ancildir"]}}/orog_srtm/SRTM_concat.nc
+            ROSE_APP_OPT_CONF_KEYS= {{resln["srtm_smooth"]}}
+            TARGET_LSM={{qrparm_mask}}
+        {% endif %}
+
+        {# 3D ancils #}
+        {% if resln["3D_ancils"] %}
+            {% for acl in AERO_CLIMS %}
+
+    [[{{ancil(regn, resln)}}_{{acl}}]]
+        # Other aerosol climatologies.
+        inherit = {{ancil(regn, resln)}},ANCIL_AERO
+                {% if PORT_FILES %}
+        post-script = scp {{resln["ancildir"]}}/qrclim.{{acl}} $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+                {% endif %}
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS = {{acl}}
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+            {% endfor %}
+
+    # Do GLOMAPS aerorols    
+    [[{{ancil(regn, resln)}}_clim_aerosol]]
+        inherit = {{ancil(regn, resln)}}, ANCIL_CLIM_AEROSOL
+                  {% if PORT_FILES %}
+        # Line to copy orography for clim_aerosol, remove once we use ANTS based ancillary
+        pre-script= scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/qrparm.orog {{resln["ancildir"]}}                  
+                 {% endif %} #}
+        [[[environment]]]
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+        {% endif %}
+
+        {# DUST-only #}
+        {% if resln["arcl_dust_anc"] %}
+    [[{{ancil(regn, resln)}}_dust]]
+        # Dust aerosol climatology.
+        inherit = {{ancil(regn, resln)}},ANCIL_AERO
+            {% if PORT_FILES %}
+        post-script =scp {{resln["ancildir"]}}/qrclim.dust $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+            {% endif %}
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS = dust
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+        {% endif %}
+
+        {# SNOW FREE-ALBEDO, CLIM-LAND #}
+        {% if resln["alb_anc"] %}
+    [[{{ancil(regn, resln)}}_land]]
+        # SW snow-free surface albedo.
+        inherit = {{ancil(regn, resln)}},ANCIL_SNOWFREE_ALBEDO
+            {% if PORT_FILES %}
+        post-script =scp {{resln["ancildir"]}}/qrclim.land $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+            {% endif %}
+        [[[environment]]]
+            {#  Read in netcdf from LSM for backwards bit-compatibility if available under CCI #}
+            {#  When used, mask_overrides are only applied to the ancil and not the NetCDF #}
+            {% if CCI_MASK and not resln["mask_overrides"] %}
+            TARGET_LSM={{qrparm_mask}}.nc
+            {% else %}
+            TARGET_LSM={{qrparm_mask}}
+            {% endif %}
+        {% endif %}
+
+    {# Soil #}
+    [[{{ancil(regn, resln)}}_soils_hydr]]
+        inherit = {{ancil(regn, resln)}},ANCIL_SOIL_ALBEDO
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_soils_hydr
+
+    [[{{ancil(regn, resln)}}_soil_albedo]]
+        inherit = {{ancil(regn, resln)}},ANCIL_SOIL_ALBEDO
+        post-script ="""
+        {% if PORT_FILES %}
+        scp {{resln["ancildir"]}}/qrparm.soil_cci $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+
+                    """
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_soil_albedo
+
+    [[{{ancil(regn, resln)}}_soil_dust]]
+        inherit = {{ancil(regn, resln)}},ANCIL_SOIL_DUST
+        post-script ="""
+        {% if PORT_FILES %}
+        scp {{resln["ancildir"]}}/qrparm.soil.dust $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+
+                    """
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_soil_dust
+
+    [[{{ancil(regn, resln)}}_soil_roughness]]
+        inherit = {{ancil(regn, resln)}},ANCIL_SOIL_ROUGHNESS
+        post-script ="""
+        {% if PORT_FILES %}
+        scp {{resln["ancildir"]}}/qrparm.soil_roughness $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+
+                    """
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_soil_roughness
+            TARGET_LSM = {{qrparm_mask}}
+            TARGET_VEGFRAC={{qrparm_vegfrac}}
+
+    {# TOPOGRAPHIC INDEX #}
+    [[{{ancil(regn, resln)}}_topographic_index]]
+        inherit = {{ancil(regn, resln)}},ANCIL_TOPOGRAPHIC_INDEX
+        {% if PORT_FILES %}
+        post-script =scp {{resln["ancildir"]}}/qrparm.hydtop $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}        
+
+    {# LAI AND CANOPY-HEIGHTS for VEG-FUNCTIONS #}
+    [[{{ancil(regn, resln)}}_lai]]
+        inherit = {{ancil(regn, resln)}},ANCIL_VEG_FUNC
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_lai
+
+    [[{{ancil(regn, resln)}}_canopy_heights]]
+        inherit = {{ancil(regn, resln)}},ANCIL_VEG_FUNC
+        {% if PORT_FILES %}
+        post-script = scp {{resln["ancildir"]}}/qrparm.veg.func $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+        [[[environment]]]
+            ROSE_TASK_APP=ancil_canopy_heights
+
+    [[{{ancil(regn, resln)}}_clim_sea]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CLIM_SEA
+        {% if PORT_FILES %}
+        post-script =scp {{resln["ancildir"]}}/qrclim.sea $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+        [[[environment]]]
+            TARGET_LSM={{qrparm_mask}}
+
+    [[{{ancil(regn, resln)}}_lake]]
+        inherit = {{ancil(regn, resln)}},ANCIL_LAKE
+        {% if PORT_FILES %}
+        post-script =scp {{resln["ancildir"]}}/qrparm.lake $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+        {% endif %}
+
+        {% if resln["moruses"] %}
+    [[{{ancil(regn, resln)}}_lct_postproc_moruses]]
+        inherit = {{ancil(regn, resln)}},ANCIL_MORUSES
+            {% if PORT_FILES %}
+        post-script = """
+                    scp {{resln["ancildir"]}}/qrparm.veg.frac.urb2t $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+                    scp {{resln["ancildir"]}}/qrparm.MORUSES.morph $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}
+                      """
+            {% endif %}                      
+        {% endif %}
+
+    
+
+    {# remove .nc files #}
+    [[{{ancil(regn, resln)}}_ants_housekeep]]
+        inherit = {{ancil(regn, resln)}},ANCIL_ANTS
+        script="""
+               rm -f {{resln["ancildir"]}}/*.nc
+               rm -f {{resln["ancildir"]}}/lai
+        {% if resln["alb_anc"] %}
+               rm -f {{resln["ancildir"]}}/soil_hydrology
+        {% endif %}
+               """
+
+    {% endfor %} {# ...for resln in regn["reslns"] #}
+{% endfor %} {# ...for regn in REGNS #}
+
+

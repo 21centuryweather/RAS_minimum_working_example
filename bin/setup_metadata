@@ -1,0 +1,1013 @@
+#!/usr/bin/env python
+# *****************************COPYRIGHT******************************
+# (C) Crown copyright Met Office. All rights reserved.
+# For further details please refer to the file COPYRIGHT.txt
+# which you should have received as part of this distribution.
+# *****************************COPYRIGHT******************************
+#
+#-----------------------------------------------------------------------
+
+import sys
+import os
+from textwrap import dedent
+
+def set_suite_conf(f, nrg, nrs):
+    try:
+        with open(f, "w") as fp:
+             fp.write("[jinja2:suite.rc]\n")
+
+             # Settings setup
+             fp.write("MAKE_LFRIC=false\n")
+             fp.write("USE_ANTS=true\n")
+             fp.write("!!ARCHIVE_ANCILS=false\n")
+             fp.write("CCI_MASK=true\n")
+             fp.write("WC_URBAN=false\n")
+             fp.write('KGO_TEST=false\n')
+             fp.write("!!USE_UKCA=false\n")             
+             fp.write("!!UKCA_FROM_ANTS=false\n")
+             fp.write("nregns=1\n")
+             # HPC set-up
+             fp.write('SITE="site"\n')
+             fp.write('!!HOST_EX="please_specify"\n')
+             fp.write("\n")
+             # Met-Office
+             fp.write('!!CHARGING_CODE="please_specify"\n')
+             # NCI
+
+             fp.write('!!NCI_PROJECT=""\n')
+             fp.write('!!NCI_STORAGE=""\n')
+             fp.write('!!NCI_QUEUE="normal"\n')
+             #CCRS
+             fp.write('!!MSS_PROJECT=""\n')
+             fp.write('!!MSS_QUEUE=""\n')
+             fp.write("\n")
+
+             # Nesting model setup
+             for rg in range(1, nrg + 1):
+                 # Region rg
+                 if rg > 1:
+                     rgig = "!!"
+                 else:
+                     rgig = ""
+                 fp.write("{0:s}rg{1:02d}_centre=50.7,-3.5\n".format(rgig, rg))
+                 fp.write("{0:s}rg{1:02d}_igbp_offset=0,0\n".format(rgig,rg))
+                 fp.write('{0:s}rg{1:02d}_name="Regn{2:d}"\n'.format(rgig, rg, rg))
+                 fp.write("{0:s}rg{1:02d}_nreslns=1\n".format(rgig, rg))
+                 fp.write("!!rg{0:02d}_pole=37.5,177.5\n".format(rg))
+                 fp.write("{0:s}rg{1:02d}_rot_grid=false\n".format(rgig, rg))
+                 fp.write('{0:s}rg{1:02d}_std_model="custom"\n'.format(rgig, rg))
+                 fp.write("{0:s}rg{1:02d}_use_centre=true\n".format(rgig, rg))                 
+                 
+                 fp.write("\n")
+                 for rs in range(1, nrs + 1):
+                     if rg > 1 or rs > 1:
+                         rsig = "!!"
+                     else:
+                         rsig = ""
+                     # Region rg, resolution rs
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_3D_ancils=true\n".format(rsig, rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_alb_anc=false\n".format(rsig, rg, rs))
+                     fp.write("!!rg{0:02d}_rs{1:02d}_arcl_dust_anc=true\n".format(rg, rs))
+                     fp.write("!!rg{0:02d}_rs{1:02d}_blc=-4.0,355.11\n".format(rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_delta=0.0135,0.0135\n".format(rsig, rg, rs))
+                     fp.write('!!rg{0:02d}_rs{1:02d}_grid_path="<specify full path to grid.nl file>"\n'.format(rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_min_lake_area=5000.0\n".format(rsig, rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_mask_overrides=false\n".format(rsig, rg, rs))
+                     fp.write('!!rg{0:02d}_rs{1:02d}_mask_overrides_file="<specify full filename>"\n'.format(rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_moruses=true\n".format(rsig, rg, rs))
+                     fp.write('{0:s}rg{1:02d}_rs{2:02d}_name="resn_{3:d}"\n'.format(rsig, rg, rs, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_npts=200,200\n".format(rsig, rg, rs))
+                     fp.write('{0:s}rg{1:02d}_rs{2:02d}_levset="L90_40km"\n'.format(rsig, rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_offset=0,0\n".format(rsig, rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_orog_srtm=true\n".format(rsig, rg, rs))
+                     fp.write('{0:s}rg{1:02d}_rs{2:02d}_srtm_smooth="121"\n'.format(rsig, rg, rs))
+                     fp.write("{0:s}rg{1:02d}_rs{2:02d}_sstsmc_anc=false\n".format(rsig, rg, rs))
+                     fp.write('!!rg{0:02d}_rs{1:02d}_vargrid="variable"\n'.format(rg, rs))
+                     fp.write('!!rg{0:02d}_rs{1:02d}_vargrid_path="<specify full path to variable.nl grid file>"\n'.format(rg, rs))
+
+                     fp.write("\n")
+    except IOError:
+        raise UserWarning("Problem writing file" + f + "\n")
+
+
+def set_metadata(f, nrg, nrs):
+    try:
+        with open(f, "w") as fp:
+
+             fp.write(dedent("""
+                 [jinja2:suite.rc]
+                 ns=jinja2:suite.rc
+                 title=Regional Ancillary Suite
+                 url=https://code.metoffice.gov.uk/trac/rmed/wiki/suites/RAS
+
+                 # General run options
+                 [ns=jinja2:suite.rc/run]
+                 sort-key=sec-a
+                 title=General run options
+
+                 [jinja2:suite.rc=SITE]
+                 ns=jinja2:suite.rc/run
+                 sort-key=run-a
+                 title=SITE
+                 description=Select site where the nesting
+                            =suite will be run
+                 compulsory=true
+                 values="site","mo1b-cray-xc40","mo1c-cray-xc40","nci-gadi","mss-utama","niwa-cray-cs500", "moex-cray"
+                 value-titles=Please select,Met Office xce/xcf,Met Office   xcs ,NCI Gadi, MSS Utama, NIWA Maui-ancil, Met Office ex
+                 trigger=jinja2:suite.rc=CHARGING_CODE: "mo1b-cray-xc40","mo1c-cray-xc40";
+                         jinja2:suite.rc=ARCHIVE_ANCILS: "mo1b-cray-xc40","mo1c-cray-xc40","moex-cray";
+                         jinja2:suite.rc=USE_UKCA: "mo1b-cray-xc40","mo1c-cray-xc40","nci-gadi","mss-utama","moex-cray";
+                         jinja2:suite.rc=HOST_EX: "moex-cray";
+                         jinja2:suite.rc=NCI_PROJECT: "nci-gadi";
+                         jinja2:suite.rc=NCI_STORAGE: "nci-gadi";
+                         jinja2:suite.rc=NCI_QUEUE: "nci-gadi";
+                         jinja2:suite.rc=MSS_PROJECT: "mss-utama";
+                         jinja2:suite.rc=MSS_QUEUE: "mss-utama";
+
+                 [jinja2:suite.rc=HOST_EX]
+                 ns=jinja2:suite.rc/run
+                 sort-key=run-a1
+                 title=EX HOST
+                 description=Select quadrant on EX. Note CAP is only availabe
+                            = in EXAB, so only one option is given.
+                 compulsory=true
+                 values="exab"
+                 value-titles=EXA and EXB
+
+                 [jinja2:suite.rc=CHARGING_CODE]
+                 ns=jinja2:suite.rc/run
+                 sort-key=run-c
+                 title=CHARGING_CODE
+                 description=Set accounting code HPC usage will be charged
+                            =against. Currently only activated for
+                            =Met Office XC40.
+                 help=For Met Office users this needs to be "climate", "foundation" or "weather"
+                 type=quoted
+                 """))
+
+             fp.write(dedent("""
+                 [ns=jinja2:suite.rc/nci]
+                 title=NCI site options
+                 sort-key=sec-a-1
+
+                 [jinja2:suite.rc=NCI_PROJECT]
+                 ns=jinja2:suite.rc/nci
+                 sort-key=nci-1
+                 type=quoted
+                 compulsory=true
+                 description=NCI Project code (leave blank for default project)
+
+                 [jinja2:suite.rc=NCI_STORAGE]
+                 ns=jinja2:suite.rc/nci
+                 sort-key=nci-2
+                 type=quoted
+                 compulsory=true
+                 description=Extra storage mounts (e.g. "gdata/a12+scratch/cd3")
+                            =Additionally gdata/access will always be added
+
+                 [jinja2:suite.rc=NCI_QUEUE]
+                 ns=jinja2:suite.rc/nci
+                 sort-key=nci-3
+                 value-hints="background","normal","express"
+                 type=quoted
+                 compulsory=true
+                 description=PBS queue to use (or "background" to run on the login node)
+                 """))
+
+
+             fp.write(dedent("""
+                 [ns=jinja2:suite.rc/ccrs]
+                 title=CCRS site options
+                 sort-key=sec-a-1
+
+                 [jinja2:suite.rc=MSS_PROJECT]
+                 ns=jinja2:suite.rc/ccrs
+                 sort-key=ccrs-1
+                 type=quoted
+                 compulsory=true
+                 description=...
+
+                 [jinja2:suite.rc=MSS_QUEUE]
+                 ns=jinja2:suite.rc/ccrs
+                 sort-key=ccrs-2
+                 value-hints="background","normal","express"
+                 type=quoted
+                 compulsory=true
+                 description=...
+                 """))
+
+
+             fp.write("[jinja2:suite.rc=MAKE_LFRIC]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-d\n")
+             fp.write("title=MAKE_LFRIC\n")
+             fp.write("description=Convert ancillaries to LFRIC\n")
+             fp.write("compulsory=true\n")
+             fp.write("help=This switch activates the tasks to reformat several UM ancillaries\n")
+             fp.write("    =to the UGRID format, so they can be ingested by LFRIC-LAMs.\n")
+             fp.write("    =\n")
+             fp.write("    =The ancillaries reformatted are those included in the 'ancils_2_ugrid' \n")
+             fp.write("    =dictionary at the end of the 'suite-setup.rc' file, see comment above the \n")
+             fp.write("    =dictionary declaration for a description of each entries.\n")
+             fp.write("    =\n")
+             fp.write("    =The conversion is done by the 'ancil_remap_ugrid' task using \n")
+             fp.write("    =a bespoke python script. Future work will replace it \n")
+             fp.write("    =by the UG-ANTS package.\n")
+             fp.write("    =\n")
+             fp.write("    =There is an exception with aerosol climatologies, LFRIC uses GLOMAPS and \n")
+             fp.write("    =the um ancil at $ANCIL_DIR/aerosol_clims/glomap/qrclim.aerosols.nc is created to \n")
+             fp.write("    =produce the LFRIC ancillary, but it is ignored by the UM as it is not part of \n")
+             fp.write("    =RAL3 or older configurations.\n")
+             fp.write("type=boolean\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=ARCHIVE_ANCILS]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-o\n")
+             fp.write("title=ARCHIVE_ANCILS\n")
+             fp.write("description=Archive ancils to MASS?\n")
+             fp.write("help=Files normally get archived to \n")
+             fp.write("    =moose:/adhoc/users/[USER_ID]/ancils/[SUITE_NAME]_[REGION]_[RESOLUTION] \n")
+             fp.write("    =however it is possible to specify a different location by\n") 
+             fp.write("    =changing the MASSROOTDIR variable in the archive app. \n")
+             fp.write("    =\n")
+             fp.write("    =Everything written to ANCIL_TARGET_PATH ($ROSE_DATA/ancils/[REGION]/[RESOLUTION) \n")
+             fp.write("    =gets archived. This includes the orog_srtm sub directory, and all the text  \n")
+             fp.write("    =files which get put in to a tarball (called text_files.tar) that will need \n") 
+             fp.write("    =to get extracted following retrieval from MASS. \n")  
+             fp.write("type=boolean\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=USE_ANTS]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-g\n")
+             fp.write("title=USE_ANTS\n")
+             fp.write("compulsory=true\n")
+             fp.write("description=Use ANTS to build ancillaries instead of CAP\n")
+             fp.write("           =SEE THE HELP PANEL FOR MORE DETAILS. \n")
+             fp.write("help=If true, several ancillaries are built using the ANcillary Tools and Suites (ANTS) \n")
+             fp.write("    =instead of being built by the Central Ancillary Program (CAP).\n")
+             fp.write("    =\n")
+             fp.write("    =Ancillaries built by ANTS: \n")
+             fp.write("    =- Vegetation fraction from the 300m ANTS CCI land use dataset. \n")
+             fp.write("    =- Vegetation function \n")
+             fp.write("    =- Soil albedo \n")
+             fp.write("    =- Topographic Index \n")
+             fp.write("    =- Chlorophyll climate albedo  \n")
+             fp.write("    =- Snow free albedo if rgXX_rsYY_land is True\n")
+             fp.write("    =- Climatological aerosols including dust if rgXX_rsYY_3D_ancils is True\n")
+             fp.write("    =- Dust only if rgXX_rsYY_3D_ancils is False and rgXX_rsYY_arcl_dust_anc is True\n")
+             fp.write("    =\n")
+             fp.write("    =The source of the Land Sea mask is chosen by the setting for the CCI_MASK below \n")
+             fp.write("    =\n")
+             fp.write("type=boolean\n")
+             fp.write("trigger=jinja2:suite.rc=CCI_MASK: true;\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=CCI_MASK]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-h\n")
+             fp.write("title=CCI_MASK\n")
+             fp.write("compulsory=true\n")             
+             fp.write("description=Specifies which land sea mask to use. \n")
+             fp.write("           =Set to true for CCI and to false for IGBP. \n")
+             fp.write("           =SEE THE HELP PANEL FOR MORE DETAILS. \n")
+             fp.write("help=Specifies whether or not to use the 300m ANTS CCI land use dataset \n")
+             fp.write("    =in generating the land-sea mask.\n")
+             fp.write("    =\n")
+             fp.write("    =If this switch is set to true then both the land sea mask and the \n")
+             fp.write("    = vegetation fraction ancillaries are generated from the CCI dataset. \n")
+             fp.write("    =\n")
+             fp.write("    =If this switch is set to false then the land sea mask is generated from \n")
+             fp.write("    =the IGBP dataset whilst the vegetation fraction ancillary is generated  \n")
+             fp.write("    =from the CCI dataset. \n")
+             fp.write("    =\n")
+             fp.write("type=boolean\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=WC_URBAN]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-h\n")
+             fp.write("title=WC_URBAN\n")
+             fp.write("compulsory=true\n")             
+             fp.write("description=If true, the urban fraction in the land cover \n")
+             fp.write("           =ancillary is replaced with ESA WorldCover \n")
+             fp.write("           =urban fraction. \n")
+             fp.write("           =NOTE: not compatible with CCI_MASK = False. \n")
+             fp.write("           =SEE THE HELP PANEL FOR MORE DETAILS. \n")
+             fp.write("help=Specifies whether to use ESA WorldCover 2021 v200 to replace urban \n")
+             fp.write("    =fractions.\n")
+             fp.write("    =\n")
+             fp.write("    =WorldCover is a 10 m global land cover dataset that provides higher resolution \n")
+             fp.write("    =urban land cover classification than CCI which is a 300 m global land cover \n")
+             fp.write("    =dataset. \n")
+             fp.write("    =\n")
+             fp.write("    =For efficiency, the source dataset contains pre-processed WorldCover with 100 m \n")
+             fp.write("    =urban fraction. \n")
+             fp.write("    =\n")
+             fp.write("    =In ancil_lct_postproc_wc_urban app there is the option to specify a non-urban \n")
+             fp.write("    =sub-grid fraction, which can be used to account for vegetation that is sub-grid  \n")
+             fp.write("    =(e.g., trees and small gardens which are <10 m). \n")
+             fp.write("    =\n")
+             fp.write("    =WC_URBAN is not compatible with CCI_MASK = False. KGO tests revealed that there \n")
+             fp.write("    =are differences in the latitudes and longitudes between the IGBP mask and land  \n")
+             fp.write("    =cover cube which causes ants.analysis.make_consistent_with_lsm to fail. \n")
+             fp.write("    =\n")
+             fp.write("type=boolean\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=USE_UKCA]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-m\n")
+             fp.write("title=USE_UKCA\n")
+             fp.write("description=Produce UKCA ancillaries for NS.\n")
+             fp.write("           =See the help panel for more details\n")
+             fp.write("help=Creates the following ancillaries for UKCA: \n")
+             fp.write("    =- cap_mask_nolakes \n")
+             fp.write("    =- cap_sulpdms \n")
+             fp.write("    =- cap_chloro \n")
+             fp.write("    =- ukca_s \n")
+             fp.write("    =- ukca_c \n")
+             fp.write("    =- ukca_ox \n")
+             fp.write("    =\n")
+             fp.write("    =NOTE cap_mask_nolakes needs to be replaced. Currently it won't work as igbp_offset !=0 \n")
+             fp.write("    =\n")
+             fp.write("    =NOTE: ukca_s,ukca_c and ukca_ox are built from the python 2.7\n")
+             fp.write("    =script app/ancil_ukca/bin/regrid_ancil_ct.py; future work will \n")
+             fp.write("    = aim to use ANTS to produce these \n")
+             fp.write("    =\n")
+             fp.write("    =NOTE: if USE_UKCA and UKCA_FROM_ANTS then the ANTS general regridding\n")
+             fp.write("    =script with linear interpolation will be used rather than the python\n")
+             fp.write("    =regridding script inset at app/ancil_ukca\n")
+             fp.write("compulsory=true\n")
+             fp.write("type=boolean\n")
+             fp.write("trigger=jinja2:suite.rc=UKCA_FROM_ANTS: true;\n")
+             for rg in range(1, nrg + 1):
+                 for rs in range(1, nrs + 1):
+                     if rg ==1 and rs ==1:
+                        fp.write("fail-if=(this =='true') and jinja2:suite.rc=rg{0:02d}_rs{1:02d}_3D_ancils == 'false';\n".format(rg, rs))
+                     else: 
+                        fp.write("       =(this =='true') and jinja2:suite.rc=rg{0:02d}_rs{1:02d}_3D_ancils == 'false';\n".format(rg, rs))
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=UKCA_FROM_ANTS]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-n\n")
+             fp.write("title=UKCA_FROM_ANTS\n")
+             fp.write("compulsory=true\n")             
+             fp.write("description=Produce UKCA ancillaries using ANTS scripts\n")
+             fp.write("help=If UKCA_FROM_ANTS=true then the ANTS general regridding script\n")
+             fp.write("    =with linear interpolation will be used rather than the python\n")
+             fp.write("    =regridding script inset\n")
+             fp.write("compulsory=true\n")
+             fp.write("type=boolean\n")
+             fp.write("fail-if=(this =='true') and jinja2:suite.rc=USE_UKCA == 'false';# UKCA_FROM_ANTS requires UKCA on\n")
+             fp.write("       =(this =='true') and jinja2:suite.rc=USE_ANTS == 'false';# UKCA_FROM_ANTS requires ANTS on\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=KGO_TEST]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-p\n")
+             fp.write("compulsory = true\n")
+             fp.write("title = KGO test\n")
+             fp.write("description = Test output against Known Good Output \n")
+             fp.write("help =This option will run a specific predefined-test \n")
+             fp.write("     =(defined in this panel as [KGO_TEST_NAME]), and compare \n")
+             fp.write("     =its output with a centralized Known Good Output (KGO) \n")
+             fp.write("     =located in the KGO_DIR directory specified in \n")             
+             fp.write("     =site/[SITE]/suite-adds.rc\n")
+             fp.write("     =\n")
+             fp.write("     =The [KGO_TEST_NAME] is defined in the file \n")
+             fp.write("     =opt/rose-suite-[KGO_TEST_NAME].conf, which will \n")
+             fp.write("     =be appended to the rose-suite.conf. Therefore\n")
+             fp.write("     =the latter needs to be on its 'vainila' verison to run the test. \n")
+             fp.write("     =To revert the rose-suite.conf file to the 'vainila' \n")
+             fp.write("     =verison, run './setup_metadata 3 3' at bin/ \n")
+             fp.write("     =\n")
+             fp.write("     =The value of this KGO_TEST variable will be overwritten by \n")
+             fp.write("     =opt/rose-suite-[KGO_TEST_NAME].conf, so please leave it \n")
+             fp.write('     =always set as False in the rose-suite.conf\n')
+             fp.write("     =\n")
+             fp.write("     =List of available test in the RAS can be found in \n")
+             fp.write("     =https://code.metoffice.gov.uk/trac/rmed/wiki/dev/practices/KGOs#RAS\n")
+             fp.write("     =\n")
+             fp.write("     =TO RUN the [KGO_TEST_NAME] KGO_TEST, execute the following command \n")
+             fp.write("     =at the suite home directory: \n")
+             fp.write("     =\n")
+             fp.write("     ='rose suite-run -O [KGO_TEST_NAME]' \n")
+             fp.write("     =\n")
+             fp.write("     = Please contact the RAS owner for further clarifications\n")
+             fp.write("     =\n")             
+             fp.write("type=boolean\n")
+             fp.write("\n")
+
+             fp.write("[jinja2:suite.rc=nregns]\n")
+             fp.write("ns=jinja2:suite.rc/run\n")
+             fp.write("sort-key=run-l\n")
+             fp.write("title=nregns\n")
+             fp.write("description=Number of nested regions\n")
+             fp.write("help=Number of geographical regions to nest.\n")
+             fp.write("    =\n")
+             fp.write("    =As it is likely that most users will only need one geographical region,\n")
+             fp.write("    =the GUI and metadata are by default set up to have a maximum of 3 region and \n")
+             fp.write("    =a maximum of 3 resolutions (per region) \n")
+             fp.write("    =\n")
+             fp.write("    =To change any of these defaults, go into the bin directory and type \n")
+             fp.write("    ='./setup_metadata 3 3' replacing any of the numbers with your preference. \n")
+             fp.write("    =Note that you will then have to work through the GUI afresh as a new \n")
+             fp.write("    =rose-suite.conf is generated by this command. \n")
+             fp.write("    =\n")
+             fp.write("type=integer\n")
+             fp.write("range=1:{0:d}\n".format(nrg))
+             for rg in range(1, nrg + 1):
+                 if rg == 1:
+                     fp.write("trigger=jinja2:suite.rc=rg{0:02d}_name: this >= {1:d};\n".format(rg, rg))
+                 else:
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_name: this >= {1:d};\n".format(rg, rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_std_model: this >= {1:d};\n".format(rg, rg))                     
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_use_centre: this >= {1:d};\n".format(rg, rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_centre: this >= {1:d};\n".format(rg, rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_rot_grid: this >= {1:d};\n".format(rg, rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_igbp_offset: this >= {1:d};\n".format(rg, rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_nreslns: this >= {1:d};\n".format(rg, rg))
+             fp.write("\n")
+
+             # Nested regions
+             for rg in range(1, nrg + 1):
+                 fp.write("# Region {0:02d}\n".format(rg))
+                 fp.write("[ns=jinja2:suite.rc/rg{0:02d}]\n".format(rg))
+                 fp.write("title=Nested region {0:d} setup\n".format(rg))
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_name]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-a\n".format(rg))
+                 fp.write("title=rg{0:02d}_name\n".format(rg))
+                 fp.write("description=Region name\n")
+                 fp.write("type=quoted\n")
+                 fp.write('fail-if="." in this; # Region name cannot contain a period\n')
+                 ################################################################################################
+                 #fp.write('pattern=^"[^.]*"$\n')
+                 ################################################################################################
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_std_model]\n".format(rg, rs))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg, rs))
+                 fp.write("sort-key=rg{0:02d}-a2\n".format(rg, rs))
+                 fp.write("title=rg{0:02d}_std_model\n".format(rg, rs))
+                 fp.write("description=EITHER a user specified grid (the original option), \n")
+                 fp.write("           =OR specify the path on the HPC to a predefined grid. \n")
+                 fp.write("           =SEE HELP PANEL FOR MORE DETAILS \n")
+                 fp.write("help=This option allows the user to choose between specifying the grid details \n")
+                 fp.write("    =within the GUI (as has always been the case), or to point the suite\n")
+                 fp.write("    =at already existing (predefined) grid namelist(s).  \n")
+                 fp.write("    =\n")
+                 fp.write("    =The custom option allows the user to set up a domain by giving the number of\n")
+                 fp.write("    =gridpoints, delta, bottom-left-corner or centre, in both this window\n")                 
+                 fp.write("    =and the Resolution window.\n")
+                 fp.write("    =\n")
+                 fp.write("    =A predefined domain requires the location of the grid file(s) on the HPC to be specified \n")
+                 fp.write("    =in the Resolution window. See the help panels for those variables for more details. \n")
+                 fp.write("    =\n")
+                 fp.write("    =\n")
+                 fp.write("    =Instructions for generating variable resolution grid files can be found at \n")
+                 fp.write("    =https://code.metoffice.gov.uk/trac/rmed/wiki/suites/RAS/variablegrid \n")
+                 fp.write("    =\n")
+                 fp.write('values="custom", "predefined"\n')
+                 fp.write('value-titles=User specified, Predefined \n')
+                 fp.write('trigger=jinja2:suite.rc=rg{0:02d}_use_centre: "custom" ;\n'.format(rg))
+                 fp.write('        jinja2:suite.rc=rg{0:02d}_rot_grid: "custom" ;\n'.format(rg))                 
+                 fp.write('        jinja2:suite.rc=rg{0:02d}_pole: "custom" ;\n'.format(rg))                 
+                 for rs in range(1, nrs + 1):
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid: "predefined" ;\n'.format(rg, rs)) #TO BE DELETED AT #176
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_delta: "custom" ;\n'.format(rg, rs))
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_npts: "custom" ;\n'.format(rg, rs))
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_blc: "custom" ;\n'.format(rg, rs))
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_offset: "custom" ;\n'.format(rg, rs))
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_grid_path: "predefined" ;\n'.format(rg, rs))
+                    fp.write('        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid_path: "predefined" ;\n'.format(rg, rs))
+                 fp.write('fail-if=this[1:-1] != "custom"  and (jinja2:suite.rc=USE_ANTS =="false");# Predefined domains not available for CAP\n')
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_use_centre]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-b\n".format(rg))
+                 fp.write("title=rg{0:02d}_use_centre\n".format(rg))
+                 fp.write("description=Define the region/resolutions using the \n")
+                 fp.write("           =centre point (TRUE) or using the \n")
+                 fp.write("           =bottom left hand corner (FALSE) .\n")
+                 fp.write("help=When use_centre is True, the grids will be defined relative to a \n")
+                 fp.write("    =common central point. This was the only choice up until July 2019. \n")
+                 fp.write("    = \n")
+                 fp.write("    =When it is False the bottom left corner of each resolution must \n")
+                 fp.write("    =be specified, e.g. as is/was the case when grids were generated using LAMPOS \n")
+                 fp.write("type=boolean\n")
+                 fp.write("trigger=jinja2:suite.rc=rg{0:02d}_centre: true;\n".format(rg))
+                 fp.write("        jinja2:suite.rc=rg{0:02d}_pole: false ;\n".format(rg))
+                 for rs in range(1, nrs + 1):
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_offset: true;\n".format(rg, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_blc: false;\n".format(rg, rs))
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_centre]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-c\n".format(rg))
+                 fp.write("title=rg{0:02d}_centre\n".format(rg))
+                 fp.write("description=Coordinates of region centre\n")
+                 fp.write("           =in degrees (lat, lon)\n")
+                 fp.write("help=Coordinates can be specified either as integers or as real numbers      \n")
+                 fp.write("    =e.g. 78.0 or 78.242 degrees, but not as 78. since the trailing .        \n")
+                 fp.write("    =throws up a Jinja2 error at runtime.                                    \n")
+                 fp.write("    =                                                                        \n")
+                 fp.write("    =Longitude can be in -180 to 180 or.0 to 360 \n")
+                 fp.write("type=real,real\n")
+                 fp.write("fail-if=this(1) < -90.0; # Latitude cannot be less than -90\n")
+                 fp.write("        this(1) > 90.0; # Latitude cannot exceed 90\n")
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_rot_grid]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-d\n".format(rg))
+                 fp.write("title=rg{0:02d}_rot_grid\n".format(rg))
+                 fp.write("description=Use rotated pole (true)\n")
+                 fp.write("           =or true lat/lon grid (false).\n")
+                 fp.write("           =When rg{0:02d}_use_centre is True\n".format(rg))
+                 fp.write("           =rg{0:02d}_centre will be used as the pole, otherwise\n".format(rg))
+                 fp.write("           =rg{0:02d}_pole will be used.\n".format(rg))
+                 fp.write("type=boolean\n")
+                 fp.write("trigger=jinja2:suite.rc=rg{0:02d}_pole: true ;\n".format(rg))
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_pole]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-e\n".format(rg))
+                 fp.write("title=rg{0:02d}_pole\n".format(rg))
+                 fp.write("description=The pole to use for this rotated region.\n")
+                 fp.write("help=Coordinates can be specified either as integers or as real numbers      \n")
+                 fp.write("    =e.g. 78.0 or 78.242 degrees, but not as 78. since the trailing .        \n")
+                 fp.write("    =throws up a Jinja2 error at runtime.                                    \n")
+                 fp.write("    =                                                                        \n")
+                 fp.write("    =Longitude convection is 0 to 360 \n")
+                 fp.write("type=real,real\n")
+                 fp.write("fail-if=this(1) < -90.0; # Latitude cannot be less than -90\n")
+                 fp.write("        this(1) > 90.0; # Latitude cannot exceed 90\n")
+                 fp.write("        this(2) < 0.0; # Longitude cannot be less than 0\n")
+                 fp.write("        this(2) > 360.0; # Longitude cannot exceed 360\n")
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_igbp_offset]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-f\n".format(rg))
+                 fp.write("title=rg{0:02d}_igbp_offset\n".format(rg))
+                 fp.write("description=NOT USED WHEN CCI_MASK is true \n")
+                 fp.write("           =(y,x) in kilometres IGBP land-sea mask offset\n")
+                 fp.write("help=The IGBP dataset used by the Central Ancillary Program to create\n")
+                 fp.write("    =the land-sea mask can be offset from truth by different distances in\n")
+                 fp.write("    =different regions of the globe. This allows the user to offset the\n")
+                 fp.write("    =land-sea mask generated to correct for this.\n")
+                 fp.write("type=real,real\n")
+                 fp.write("\n")
+
+                 fp.write("[jinja2:suite.rc=rg{0:02d}_nreslns]\n".format(rg))
+                 fp.write("ns=jinja2:suite.rc/rg{0:02d}\n".format(rg))
+                 fp.write("sort-key=rg{0:02d}-g\n".format(rg))
+                 fp.write("title=rg{0:02d}_nreslns\n".format(rg))
+                 fp.write("description=Number of resolutions\n")
+                 fp.write("help=This defines the number of nested model resolutions for this region.\n")
+                 fp.write("    =As it is likely that most users will only need a maximum of 3 resolutions,,\n")
+                 fp.write("    =the GUI and metadata are by default set up to have a maximum of 3 regions, \n")
+                 fp.write("    =a maximum of 3 resolutions (per region)\n")
+                 fp.write("    =\n")
+                 fp.write("    =To change any of these defaults, go into the bin directory and type \n")
+                 fp.write("    ='./setup_metadata 3 3' replacing any of the numbers with your preference. \n")
+                 fp.write("    =Note that you will then have to work through the GUI afresh as a new \n")
+                 fp.write("    =rose-suite.conf is generated by this command. \n")
+                 fp.write("    =\n")
+                 fp.write("type=integer\n")
+                 fp.write("range=1:{0:d}\n".format(nrs))
+                 for rs in range(1, nrs + 1):
+                     if rs == 1:
+                        fp.write("trigger=jinja2:suite.rc=rg{0:02d}_rs{1:02d}_name: this >= {2:d};\n".format(rg, rs, rs))
+                     else:
+                        fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_name: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_blc: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_3D_ancils: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_arcl_dust_anc: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_sstsmc_anc: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_min_lake_area: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_mask_overrides: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_mask_overrides_file: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_alb_anc: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_moruses: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_orog_srtm: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_srtm_smooth: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_npts: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_delta: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_levset: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_offset: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_grid_path: this >= {2:d};\n".format(rg, rs, rs))
+                     fp.write("        jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid_path: this >= {2:d};\n".format(rg, rs, rs))
+                 fp.write("\n")
+
+                 for rs in range(1, nrs + 1):
+                     fp.write("# Region {0:02d}, model {1:02d}\n".format(rg, rs))
+                     fp.write("[ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}]\n".format(rg, rs))
+                     fp.write("title=Resolution {0:d} setup\n".format(rs))
+                     fp.write("\n")
+    
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_name]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-b\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_name\n".format(rg, rs))
+                     fp.write("description=Resolution name\n")
+                     fp.write("           =Must not contain full stops or spaces.\n")
+                     fp.write('fail-if="." in this; # Resolution name cannot contain a period\n')
+                     ################################################################################################
+                     #fp.write('pattern=^"[^.]*"$\n')
+                     ################################################################################################
+                     fp.write("type=quoted\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-c\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_vargrid\n".format(rg, rs))
+                     fp.write("description=Fixed or Variable resolution domain\n")
+                     fp.write("           =SEE HELP PANEL FOR MORE DETAILS \n")
+                     fp.write("help=Specifies if the grid is variable, e.g. UKV containing \n")
+                     fp.write("    =gridlengths from 4.0km to 1.5km. Or fixed with a regular \n")
+                     fp.write("    =gridlength.\n")
+                     fp.write("    =\n")
+                     fp.write("    =Currently this option is only available for predefined domains \n")
+                     fp.write("    =via 'vargrid_path' variable. Ticket #176 at  \n")
+                     fp.write("    =https://code.metoffice.gov.uk/trac/rmed/ticket/176 \n")
+                     fp.write("    =will provide functionality to produce user-defined variable resolution \n")
+                     fp.write("    =domains \n")
+                     fp.write("    =\n")
+                     fp.write('values="fixed", "variable"\n')
+                     fp.write('trigger=jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid_path: "variable";\n'.format(rg, rs, rs))                     
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_grid_path]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d1\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_grid_path\n".format(rg, rs))
+                     fp.write("description=Full HPC path to the horizontal grid file. \n")
+                     fp.write("           =SEE HELP PANEL FOR MORE DETAILS \n")
+                     fp.write("help=This is the location on your HPC of the file defining the horizontal \n")
+                     fp.write("    =grid dimensions and rotated pole (&GRID UM resolution). Additionally for \n")
+                     fp.write("    =a fixed resolution model it defines the grid spacing.   \n")
+                     fp.write("    =\n")
+                     fp.write("    =eg. the relevant UKV file on the Met Office system is located at \n")
+                     fp.write("    =/projects/um1/ancil/data/namelist/grids/grid.ukv_new/v1/grid.ukv_new \n")
+                     fp.write("    =\n")
+                     fp.write("    =The file can equally be a user's grid.nl file, e.g. generated by a previous \n")
+                     fp.write("    =run of this suite.\n")
+                     fp.write("type=quoted\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid_path]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d2\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_vargrid_path\n".format(rg, rs))
+                     fp.write("description=Full HPC path to the variable resolution \n")
+                     fp.write("           =grid namelist file. \n")
+                     fp.write("           =SEE HELP PANEL FOR MORE DETAILS \n")
+                     fp.write("help=This is the location on your HPC of the file defining the latitudes and \n")
+                     fp.write("    =longitudes of your variable resolution grid (&HORIZGRID UM namelist). \n")
+                     fp.write("    =\n")
+                     fp.write("    =eg. the relevant UKV file on the Met Office system is located at \n")
+                     fp.write("    =/projects/um1/ancil/data/namelist/variable_grids/variable.ukv_new/v1/variable.ukv_new\n")
+                     fp.write("    =\n")
+                     fp.write("    =The file can equally be one specified by a user if they have generated \n")
+                     fp.write("    =their own variable resolution grid namelist.\n")
+                     fp.write("type=quoted\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_blc]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d1\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_blc\n".format(rg, rs))
+                     fp.write("description=Bottom Left corner (lat, lon) of ENDGame domain [Lon: 0-360]\n")
+                     fp.write("help=The bottom left corner of the domian. If the domain\n")
+                     fp.write("    =is rotated then this must be given in the\n")
+                     fp.write("    =rotated coordinates. Note that this is the ENDGame grid\n")
+                     fp.write("    =and is therefore offset by half a grid spacing from the\n")
+                     fp.write("    =corner calculated from the centre and the grid size,\n")
+                     fp.write("    =where centre refers to the centre given when\n")
+                     fp.write("    =rg{0:02d}_use_centre is true.\n".format(rg))
+                     fp.write("type=real,real\n")
+                     fp.write("fail-if=this(1) < -90.0; # Latitude cannot be less than -90\n")
+                     fp.write("        this(1) > 90.0; # Latitude cannot exceed 90\n")
+                     fp.write("        this(2) < 0.0; # Longitude cannot be less than 0\n")
+                     fp.write("        this(2) > 360.0; # Longitude cannot exceed 360\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_delta]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d2\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_delta\n".format(rg, rs))
+                     fp.write("description=Horizontal grid-length (lat, lon) in degrees\n")
+                     fp.write("help=Grid spacing in degrees in each direction\n")
+                     fp.write("range=0:\n")
+                     fp.write("type=real,real\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_npts]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d3\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_npts\n".format(rg, rs))
+                     fp.write("description=Number of grid-points in (y,x)\n")
+                     fp.write("           =See help panel for LFRIC domains. \n")
+                     fp.write("help= IMPORTANT: Grid sizes for LFRIC must be divisible \n")
+                     fp.write("    = by 8 in both directions, It is recommended to \n")
+                     fp.write("    = be divisible by 16, 24 and or 48 (depending on the \n")
+                     fp.write("    = processor per nodes of your local HPC) to make the \n")
+                     fp.write("    = paralelization easier. \n")
+                     fp.write("range=1:\n")
+                     fp.write("type=integer,integer\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_offset]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-d4\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_offset\n".format(rg, rs))
+                     fp.write("description=Offset in degrees of this resolution \n")
+                     fp.write("           =from the region centre (lat, lon)\n")
+                     fp.write("help=Offset (in degrees) of the domain from the centre of the region.\n")
+                     fp.write("    =The offset is applied on the model grid, and so when using the  \n")
+                     fp.write("    =rotated grid option, this means that the offset will be  \n")
+                     fp.write("    =different to the real (lat, lon) displacement. \n")
+                     fp.write("type=real,real\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_levset]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-e\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_levset\n".format(rg, rs))
+                     fp.write("description=Vertical levels set. Please see\n")
+                     fp.write("           =the help panel for more details. \n")
+                     fp.write("help=Choose from one of the following vertical level sets\n")
+                     fp.write("    =\n")
+                     fp.write("    =1. L70_40km - 70 levels, 40 km lid. Used in the RA1-M mid-latitude \n")
+                     fp.write("    =              configuration, and in operational configurations, e.g. the UKV. \n")
+                     fp.write("    =\n")
+                     fp.write("    =2. L80_38p5km   - 80 levels, 38.5 km lid. Used in the RA1-T tropical configuration\n")
+                     fp.write("    =   and recommended for use in any km-scale tropical LAM. \n")
+                     fp.write("    =\n")
+                     fp.write("    =3. L90_40km   - 90 levels, 40 km lid. Candidate RA2 configuration\n")
+                     fp.write("    =   level set for use in both mid-latitude and tropical LAMs. \n")
+                     fp.write("    =   See https://code.metoffice.gov.uk/trac/rmed/wiki/ticket/36/TicketDetails for more details.\n")
+                     fp.write("    =\n")
+                     fp.write("    =10. L118_78km     - 118 levels, 78 km lid (UKV to 8km and then retains fine resolution\n")
+                     fp.write("    =   through the stratosphere).\n")
+                     fp.write("    =\n")
+                     fp.write("    =11. L120_40km     - 120 levels, 40 km lid (Enhanced resolution = candidate levels set \n")
+                     fp.write("         for the future regional atmosphere model).   \n")
+                     fp.write("    =\n")
+                     fp.write("    =12. L140_40km - 140 levels, 40 km lid (Same levels as L70_40km but with twice the resolution) \n")
+                     fp.write("    =\n")
+                     fp.write("    =15. L70_80km       - 70 levels, 80 km lid (used in the Met Office Global model)\n")
+                     fp.write("    =\n")
+                     fp.write("    =16. L85_85km       - 85 levels, 85 km lid (used in Met Office Global climate models)\n")
+                     fp.write("    =\n")
+                     fp.write("    =Other vertical level sets can be added upon request.\n")
+                     fp.write('values="L70_40km","L80_38p5km","L90_40km","L118_78km","L120_40km","L140_40km","L70_80km","L85_85km"\n')
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_min_lake_area]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-f\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_min_lake_area\n".format(rg, rs))
+                     fp.write("description=NOT USED WHEN CCI_MASK is true \n") 
+                     fp.write("           =Minimum area of lakes to retain in\n")
+                     fp.write("           =LSM generation when using CAP/IGBP.\n")
+                     fp.write("help=Inland lakes with an area (in square km) less than this will\n")
+                     fp.write("    =be set to land points in the land-sea mask generated by the\n")
+                     fp.write("    =regional ancillary suite.\n")
+                     fp.write("    =\n")
+                     fp.write("    =If the resulting land-sea mask excludes (includes) lakes that the\n")
+                     fp.write("    =user wishes to be present (absent), then reduce (increase) the\n")
+                     fp.write("    =value of this parameter and re-create the land-sea mask.\n")
+                     fp.write("    =See http://collab.metoffice.gov.uk/twiki/bin/view/Support/ROSENestingSuiteLSMIssues#Namelist_Settings \n")
+                     fp.write("    = for more details.\n")
+                     fp.write("type=real\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_mask_overrides]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-g1\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_mask_overrides\n".format(rg, rs))
+                     fp.write("description=edit the land sea mask values after it  has been produced\n")
+                     fp.write("           =PLEASE SEE HELP PANEL FOR FULL DETAILS\n")
+                     fp.write("help=Ocasionally a user may want to manually specify whether some\n")
+                     fp.write("    =specific grid points are land or sea.\n")
+                     fp.write("    =\n")
+                     fp.write("    =If this option is selected then either an image (.png) of the desired mask,\n") 
+                     fp.write("    =or a text file specifying the points to edit must be provided.\n")
+                     fp.write("    =If a text  file is provided, then this textfile will be generated using mule-editmask genancil. \n") 
+                     fp.write("    =Eitherway, it is anticipated that users will make use of the mule-editmask tool to assist with the editing. \n")
+                     fp.write("    =See ~frswa/test/mule_editmask/docs/index.html for instructions \n")
+                     fp.write("    =\n")
+                     fp.write("    =Note this option is currently only available at the Met Office. Contact \n")
+                     fp.write("    =Simon Tucker (simon.tucker@metoffice.gov.uk) for more information \n")
+                     fp.write("    =\n")
+                     fp.write("type=boolean\n")
+                     fp.write("trigger=jinja2:suite.rc=rg{0:02d}_rs{1:02d}_mask_overrides_file: true;\n".format(rg, rs))
+                     fp.write("fail-if=(this =='true') and not ((jinja2:suite.rc=SITE[1:-1] == 'mo1b-cray-xc40') or (jinja2:suite.rc=SITE[1:1] == 'mo1c-cray-xc40') or (jinja2:suite.rc=SITE[1:1] == 'moex-cray'));# Mask overrides currently only available at the Met Office.\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_mask_overrides_file]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-g2\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_mask_overrides_file\n".format(rg, rs))
+                     fp.write("description=path to text or image file that specifies which points to edit\n")
+                     fp.write("           =PLEASE SEE HELP PANEL FOR FULL DETAILS\n")
+                     fp.write("help=Either a path to an image  (.png) of the desired mask,\n") 
+                     fp.write("    =or a text file specifying the points to edit must be provided.\n")
+                     fp.write("    =If a text  file is provided, then this textfile will be generated using mule-editmask genancil. \n") 
+                     fp.write("    =Eitherway, it is anticipated that users will make use of the mule-editmask tool to assist with the editing. \n")
+                     fp.write("    =See ~frswa/test/mule_editmask/docs/index.html for instructions\n")
+                     fp.write("    =\n")
+                     fp.write("type=quoted\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_alb_anc]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-h\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_alb_anc\n".format(rg, rs))
+                     fp.write("description=Use albedo ancillary\n")
+                     fp.write("help=This will produce an ancillary file for the SW albedo of the\n")
+                     fp.write("    =snow-free land surface, using ~5 km resolution data from the\n")
+                     fp.write("    =GlobAlbedo project.\n")
+                     fp.write("    =\n")
+                     fp.write("    =The ancillary is then used to adapt the land surface tiles in\n")
+                     fp.write("    =the model, correcting the urban tile from being unrealistically\n")
+                     fp.write("    =bright. This has been shown to cause an erroneous anti-heat\n")
+                     fp.write("    =island effect in the Met Office 300 m London model.\n")
+                     fp.write("type=boolean\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_orog_srtm]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-i1\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_orog_srtm\n".format(rg, rs))
+                     fp.write("description=Use the 100m resolution SRTM dataset\n")
+                     fp.write("           =to generate the mean orography.\n")
+                     fp.write("           =PLEASE SEE HELP PANEL FOR FULL DETAILS.\n")
+                     fp.write("help=Setting this to true will use the 100 m resolution Shuttle Radar Topography Mission (SRTM) data\n")
+                     fp.write("    =to generate the mean orography. Note that the entire LAM domain must lie equatorwards of \n")
+                     fp.write("    =60N and 60S otherwise the ancillary file will not be made correctly. \n")
+                     fp.write("    = \n")
+                     fp.write("    =The code generates a set of ancillaries in the orog_srtm subdirectory. \n")
+                     fp.write("    = \n")
+                     fp.write("    =IF THIS SWITCH IS LEFT AS FALSE then the mean orography is generated from the 1 km resolution \n")
+                     fp.write("    =GLOBE dataset. In that case \n")
+                     fp.write("    =qrparm.orog.mn -> qrparm.orog\n")
+                     fp.write("    = \n")
+                     fp.write("    =It will work in non-rotated, rotated or variable resolution grids.\n")
+                     fp.write("trigger=jinja2:suite.rc=rg{0:02d}_rs{1:02d}_srtm_smooth: true;\n".format(rg, rs))
+                     fp.write("type=boolean\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_srtm_smooth]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-i2\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_srtm_smooth\n".format(rg, rs))
+                     fp.write("description=Method to smooth the SRTM-based\n")
+                     fp.write("           =mean orography.\n")
+                     fp.write("           =PLEASE SEE HELP PANEL FOR FULL DETAILS.\n")
+                     fp.write("help=There are two options:\n")
+                     fp.write("    =\n")
+                     fp.write("    = 121: Applies the 1-2-1 smoothing filter \n")
+                     fp.write("    =      Each sweep of this smoothing is initially only applied at points >1500m ASL. \n")
+                     fp.write("    =      The 3rd to last sweep applies the smoothing at points >1000m ASL. \n")
+                     fp.write("    =      The penultimate sweep applies the smoothing at points >500m ASL. \n")
+                     fp.write("    =      The final sweep applies the 1-2-1 smoothing at all points. \n")
+                     fp.write("    =      To add more 121 iterations: include them in SMOOTH_FACTOR variable at L6 of  \n")
+                     fp.write("    =      app/ancil_mean_orog_smooth/opt/rose-app-121.conf\n")
+                     fp.write("    =      NOTE: This configuration is not recommended for variable resolution grids.\n")
+                     fp.write("    = \n")
+                     fp.write("    = Raymond: Applies different values for the epsilon parameter of the Raymod filter \n")
+                     fp.write('    =          To add more epsilon values: in "epsilon" variable at L17 of \n')
+                     fp.write("    =          app/ancil_mean_orog_smooth/opt/rose-app-raymond.conf\n")
+                     fp.write("    = \n")
+                     fp.write("    = The 121 filter is more effective at smoothing fields, but it may be inconsistent for\n")
+                     fp.write("    = variable resolution grids, where the Raymond filter is prefered. \n")
+                     fp.write("    = \n")
+                     fp.write("    =THE AIM IS TO USE AS LITTLE SMOOTHING AS POSSIBLE. However, if there are \n")
+                     fp.write("    =BicGstab failures in the first few timesteps of a run, and investigations\n")
+                     fp.write("    =reveal excessive near surface winds over steep slopes then it is recommended to test with \n")
+                     fp.write("    =progressively smoother ancillary files.\n")
+                     fp.write("    =Testing the involves changing the soft link to orog_srtm subdirectory. \n")
+                     fp.write("    =Then on the RNS/ENS/RCS rerun the RCF job before retriggering the failing forecast job.\n")
+                     fp.write("    =\n")
+                     fp.write("    =For example for the 4.4 km WCSSP SE Asia domain method, the qrparm.orog.srtm.121x20 has been\n")
+                     fp.write("    =found to be sufficient to smooth out both the slopes of the Himalayas and of New\n")
+                     fp.write("    =Guinea to enable robustly stable real time forecasts to be run.\n")
+                     fp.write('values="121","raymond"\n')
+                     fp.write('value-titles="121","Raymond"\n')
+                     fp.write('fail-if=(this[1:-1]=="121") and jinja2:suite.rc=rg{0:02d}_rs{1:02d}_vargrid[1:-1]=="variable";# 1-2-1 not availabe for variable grids\n'.format(rg, rs))
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_3D_ancils]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-j\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_3D_ancils\n".format(rg, rs))
+                     fp.write("description=Use ozone and aerosol climatology ancillaries\n")
+                     fp.write("           =REQUIRED FOR LFRIC\n")
+                     fp.write("help=The default behaviour of the regional nesting suite is to reconfigure ozone and\n")
+                     fp.write("    =aerosol climatology fields from the start dump of the parent model.\n")
+                     fp.write("    =\n")
+                     fp.write("    =Setting this to true will generate and use ancillary files for these \n")
+                     fp.write("    =3D fields instead. This is the recommended approach for free running \n")
+                     fp.write("    =simulations, in which these ancillaries are configured in each day.  \n")
+                     fp.write("    = \n")
+                     fp.write("    =Beware that this can lead to large file sizes for high-resolution models.\n")
+                     fp.write("    = \n")
+                     fp.write("\n")
+                     fp.write("type=boolean\n")
+                     fp.write("trigger=jinja2:suite.rc=rg{0:02d}_rs{1:02d}_arcl_dust_anc: false;\n".format(rg, rs))
+                     fp.write("fail-if=(this =='false') and jinja2:suite.rc=MAKE_LFRIC== 'true';\n".format(rg))
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_arcl_dust_anc]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-k\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_arcl_dust_anc\n".format(rg, rs))
+                     fp.write("description=Use dust aerosol climatology ancillary\n")
+                     fp.write("help=The RAS will produce an ancillary file for the dust\n")
+                     fp.write("    =aerosol climatology by default. This is because the necessary\n")
+                     fp.write("    =fields may be missing from the start dump of the parent model (as\n")
+                     fp.write("    =an example, the Met Office global model has used the prognostic\n")
+                     fp.write("    =dust scheme since July 2011 instead).\n")
+                     fp.write("    =\n")
+                     fp.write("    =However, if the necessary fields are present in the parent model\n")
+                     fp.write("    =start dump, then they can be reconfigured by turning off this option.\n")
+                     fp.write("    =This is particularly useful for very high-resolution nested models\n")
+                     fp.write("    =since the dust aerosol climatology ancillary can be costly to produce.\n")
+                     fp.write("type=boolean\n")
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_sstsmc_anc]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-l\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_sstsmc_anc\n".format(rg, rs))
+                     fp.write("description=Make extra SST and SMC ancillaries\n")
+                     fp.write("           =REQUIRED FOR LFRIC\n")
+                     fp.write("help=Select this option to generate the following extra ancillary files:\n")
+                     fp.write("    =\n")
+                     fp.write("    =1. Sea surface temperature and sea ice fraction (qrclim.sst and qrclim.seaice)\n")
+                     fp.write("    =2. Soil moisture and snow amount (qrclim.smow)\n")
+                     fp.write("    =\n")
+                     fp.write("    =The soil moisture ancillary can only be made if land-use ancillaries are\n")
+                     fp.write("    =being used.\n")
+                     fp.write("    =\n")
+                     fp.write("    =Note these extra ancillaries are not used by the default version of the nesting suite.\n")
+                     fp.write("type=boolean\n")
+                     fp.write("fail-if=(this =='false') and jinja2:suite.rc=MAKE_LFRIC== 'true';\n".format(rg))
+                     fp.write("\n")
+
+                     fp.write("[jinja2:suite.rc=rg{0:02d}_rs{1:02d}_moruses]\n".format(rg, rs))
+                     fp.write("ns=jinja2:suite.rc/rg{0:02d}/rs{1:02d}\n".format(rg, rs))
+                     fp.write("sort-key=rg{0:02d}_rs{1:02d}-m\n".format(rg, rs))
+                     fp.write("title=rg{0:02d}_rs{1:02d}_moruses\n".format(rg, rs))
+                     fp.write("description=Create ancillaries for MORUSES\n")
+                     fp.write("help=The Met Office-Reading Urban Surface Exchange Scheme (MORUSES) \n")
+                     fp.write("    =Needs a 10-tiled vegetation file with urban roof and caynons \n")
+                     fp.write("    =and one ancillary file containing the prognostics of urban building height, \n")
+                     fp.write("    = urban height to width ratio (hwr) and urban width ratio (wrr). \n")
+                     fp.write("    =\n")
+                     fp.write("    =This trigger will produce both files using the empirical relationships described in \n")
+                     fp.write("    =section 3 of S. Bohnenstengel et al. 2011, https://doi.org/10.1002/qj.855 \n")
+                     fp.write("    =The qrparm.veg.frac.urb2t for 10-tiled vegetation fraction and \n")
+                     fp.write("    =qrparm.MORUSES.morph for MORUSES the urban parameters\n")
+                     fp.write("type=boolean\n")
+                     fp.write("\n")
+
+    except IOError:
+        raise UserWarning("Problem writing file" + f + "\n")
+
+
+def main(inargs):
+    narg = len(inargs)
+    if narg != 2:
+        print("Error: incorrect number of input arguments")
+        print("Usage: setup_metadata <maximum number of regions> <maximum number of resolutions per region>")
+        exit(1)
+    maxnregn = int(inargs[0])
+    maxnresln = int(inargs[1])
+
+    confdir = os.path.split(os.getcwd())[0] + "/"
+    metadir = confdir + "meta/"
+
+    metafile = metadir + "rose-meta.conf"
+    conffile = confdir + "rose-suite.conf"
+
+    set_suite_conf(conffile, maxnregn, maxnresln)
+    set_metadata(metafile, maxnregn, maxnresln)
+
+
+if __name__=='__main__':
+    main(sys.argv[1:])

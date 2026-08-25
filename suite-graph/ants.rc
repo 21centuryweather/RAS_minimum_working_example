@@ -1,0 +1,104 @@
+{% set FIRST_LCT_APP = ancil(regn, resln)~'_lct' if CCI_MASK else ancil(regn, resln)~'_lct_vegfrac_only' %}
+{# Do Top and install_ants #}
+install_ants & install_ugants => {{FIRST_LCT_APP}}
+{% if regn["std_model"] == "custom" %}
+     {{ancil(regn, resln)}}_top => \
+{% else%}
+     {{ancil(regn, resln)}}_nocustom => \
+{% endif %}
+
+{% if PORT_FILES %}
+     {{ancil(regn, resln)}}_cpdir => {{FIRST_LCT_APP}}
+{% else %}
+     {{FIRST_LCT_APP}}
+{% endif %}
+
+{# Do MASK, VEGFRAC AND OROG #}
+    {{FIRST_LCT_APP}} => {{ancil(regn, resln)}}_lct_postproc_c4 => \
+    {{ancil(regn, resln)}}_cap_orog => {{ancil(regn, resln)}}_ants_housekeep
+
+{# Do WC_URBAN #}
+{% if WC_URBAN %}
+     {{FIRST_LCT_APP}} => {{ancil(regn, resln)}}_lct_postproc_wc_urban => {{ancil(regn, resln)}}_lct_postproc_c4
+{% endif %}
+
+{# Do mask overrides #}
+{% if resln["mask_overrides"] %}
+    {% if CCI_MASK %}
+    {{ancil(regn, resln)}}_lct => {{ancil(regn, resln)}}_mask_overrides
+    {% endif %}
+    {{ancil(regn, resln)}}_mask_overrides => \
+    {{ancil(regn, resln)}}_lct_vegfrac_only => {{ancil(regn, resln)}}_lct_postproc_c4
+{% endif %}
+
+{# SRTM Oroggraphy #}
+{% if resln["orog_srtm"] %}
+            {{ancil(regn, resln)}}_cap_orog => {{ancil(regn, resln)}}_mean_orog => \
+            {{ancil(regn, resln)}}_mean_orog_smooth => {{ancil(regn, resln)}}_ants_housekeep
+{% endif %}
+
+
+{# DO 3-D ancils #}
+{% if resln["3D_ancils"] %}
+    {% for acl in AERO_CLIMS %}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => \
+            {{ancil(regn, resln)}}_{{acl}} =>  {{ancil(regn, resln)}}_ants_housekeep
+    {% endfor %}
+{% endif %}
+
+{# Do Dust climatology#}
+{% if resln["arcl_dust_anc"] %}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => \
+            {{ancil(regn, resln)}}_dust =>  {{ancil(regn, resln)}}_ants_housekeep
+{% endif %}
+
+{# Snow free albedo #}
+{% if resln["alb_anc"] %}      
+            {{ancil(regn, resln)}}_lct_postproc_c4 => \
+            {{ancil(regn, resln)}}_land =>  {{ancil(regn, resln)}}_ants_housekeep
+{% endif %}
+
+{## Add RAL3 specific ancils, put them under triggers? ###}
+
+{# Soil albedo #}
+            {{ancil(regn, resln)}}_lct_postproc_c4 =>  {{ancil(regn, resln)}}_soils_hydr => \
+            {{ancil(regn, resln)}}_soil_albedo => {{ancil(regn, resln)}}_ants_housekeep
+
+{# Soil dust - for prognostic dust #}
+            {{ancil(regn, resln)}}_soil_albedo => \
+            {{ancil(regn, resln)}}_soil_dust =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# Topographic Index #}
+            {{ancil(regn, resln)}}_lct_postproc_c4  => \
+            {{ancil(regn, resln)}}_topographic_index =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# LAI & VEGFUNC #}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => {{ancil(regn, resln)}}_lai => \
+            {{ancil(regn, resln)}}_canopy_heights =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# Soil roughness #}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => \
+            {{ancil(regn, resln)}}_soil_roughness =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# SEA chlorophyll #}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => {{ancil(regn, resln)}}_clim_sea =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# LAKE mask #}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => {{ancil(regn, resln)}}_lake =>  {{ancil(regn, resln)}}_ants_housekeep
+
+{# UKCA ancils #}
+{% if USE_UKCA and UKCA_FROM_ANTS %}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => {{ancil(regn, resln)}}_clim_sea => \
+            {{ancil(regn, resln)}}_ants_ukca_s & {{ancil(regn, resln)}}_ants_ukca_c & \
+            {{ancil(regn, resln)}}_ants_ukca_ox => {{ancil(regn, resln)}}_ants_housekeep
+{% endif %}
+
+{# MORUSES mask #}
+{% if resln["moruses"] %}
+            {{ancil(regn, resln)}}_lct_postproc_c4 => {{ancil(regn, resln)}}_lct_postproc_moruses => \
+            {{ancil(regn, resln)}}_ants_housekeep
+{% endif %}
+
+{# Housekeep to ancil versions #}
+
+            {{ancil(regn, resln)}}_ants_housekeep => {{ancil(regn, resln)}}_versions

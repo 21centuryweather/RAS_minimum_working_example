@@ -1,0 +1,22 @@
+
+Site-specific suite files.
+
+1) <SITE>/suite-adds.rc
+ 
+    This file is included at the END of the suite.rc file to add site-specific
+    settings to the core suite definition, e.g. all site-specific [runtime]
+    settings, and any site-specific additions to the core suite graph.
+
+2) <SITE>/suite-vars.rc 
+
+    This file is included at the TOP of the suite.rc file to define
+    site-specific logical switches used in the core suite definition. Note
+    however, these should be avoided in favour of using 1) where possible.
+   
+Additionally, site "add" files can load private include files. Their filenames
+should begin with "_" to distinguish from the general site files above, e.g.:
+   site/niwa-ibm-pwr6/
+     suite-vars.rc
+     suite-adds.rc  # includes site/niwa-ibm-pwr6/_netcdf.rc
+     _netcdf.rc  # <--
+Where _netcdf.rc adds a netcdf post-processing workflow to the suite, at NIWA.

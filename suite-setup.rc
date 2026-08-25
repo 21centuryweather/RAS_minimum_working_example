@@ -1,0 +1,122 @@
+{#  Set CCI_MASK to false if USE_ANTS=false  #}
+
+{% if not USE_ANTS %}
+   {% set CCI_MASK = false %}
+{% endif %}
+
+{# Set name of qrparm_mask and qparm_vegfrac #}
+{% if USE_ANTS %}
+    {% if CCI_MASK %}
+        {% set qrparm_mask="qrparm.mask_cci" %}
+        {% set qrparm_vegfrac="qrparm.veg.frac_cci" %}
+    {% else %}
+        {% set qrparm_mask="qrparm.mask_igbp" %}
+        {% set qrparm_vegfrac="qrparm.veg.frac_cci_on_igbp" %}
+    {% endif %}
+{% else %}
+    {% set qrparm_mask="qrparm.mask_igbp" %}
+    {% set qrparm_vegfrac="qrparm.veg.frac_igbp" %}
+{% endif %}
+{% if MAKE_LFRIC %}
+    {% set LFRIC_EXEC_DIR = "$CYLC_SUITE_SHARE_DIR/fcm_make_lfric" %}
+{% endif %}
+{# ################### Store variables in rose-suite.conf in dictionaries ################### #}
+
+{# Now create a data structure, REGNS, to hold all necessary information about the nested LAMs.
+REGNS is a list of dictionaries, one for each geographical region to be modelled using
+the nesting suite. Each of these dictionaries stores information about the region, such
+as the location of its centre, and a list of the different model resolutions (levels of
+nesting) to be used in each region. Each resolution is represented by a dictionary
+holding parameters necessary to describe it, such as the horizontal grid spacing and
+vertical level set, and a list of the different UM science configurations that will be
+run at this resolution. The properties of each model configuration are also stored in a
+dictionary #}
+{% set REGNS = [] %}
+{# Loop over geographical sub-regions #}
+{% for rg in range(1, nregns + 1) %}
+    {% set rgp = rg|pad(2,"0") %}
+    {% set REGN = {} %}
+    {% set REGN_ATTR_NAMES = ["std_model", "name", "use_centre", "centre", "rot_grid", "pole", "igbp_offset", "nreslns"] %}
+    {% for regn_attr_name in REGN_ATTR_NAMES %}
+        {% set regn_attr_val = ("rg" + rgp + "_" + regn_attr_name)|get_variable() %}
+        {% do REGN.update({regn_attr_name: regn_attr_val}) %}
+    {% endfor %}
+    {# Loop over resolutions for this region #}
+    {% do REGN.update({"reslns": []}) %}
+    {% for rs in range(1, REGN["nreslns"] + 1) %}
+        {% set rsp = rs|pad(2,"0") %}
+        {% set RESLN = {} %}
+        {% set RESLN_ATTR_NAMES = ["name", "vargrid", "grid_path", "vargrid_path", "blc", "npts", "delta", 
+	"levset", "3D_ancils", "arcl_dust_anc", "zon_avg_ozone", "sstsmc_anc", "min_lake_area", "alb_anc", "orog_srtm",
+	"srtm_smooth", "offset", "moruses", "mask_overrides", "mask_overrides_file"] %}
+        {% for resln_attr_name in RESLN_ATTR_NAMES %}
+            {% set resln_attr_val = ("rg" + rgp + "_rs" + rsp + "_" + resln_attr_name)|get_variable() %}
+            {% do RESLN.update({resln_attr_name: resln_attr_val}) %}
+        {% endfor %}
+        {% do REGN["reslns"].append(RESLN) %}
+    {% endfor %}
+    {# Store dictionary for this region in the list of regions #}
+    {% do REGNS.append(REGN) %}
+{% endfor %}
+
+{# ############################# Ancillary generation set up ############################# #}
+
+{% for regn in REGNS %}
+    {% for resln in regn["reslns"] %}
+        {# Default nesting suite location for ancillary and ancillary versions files #}
+        {% do resln.update({"ancildir": ancildir(regn, resln)}) %}
+        {% if resln["zon_avg_ozone"] is none %}
+            {# Unless specified otherwise in the rose-suite.conf, the ozone
+            ancillary field is assumed to be not zonally-averaged, the default
+            behaviour of the nesting suite #}
+            {% do resln.update({"zon_avg_ozone": false}) %}
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+{# Compute the coordinates of the bottom left corner of each nested domain (both ENDGame and
+New Dynamics grids), and the coordinates of the pole for the region #}
+{% for regn in REGNS %}
+    {% if regn["use_centre"] %}
+        {% do regn.update({"pole": regn["centre"]|rot_pole(do_rotate=regn["rot_grid"])}) %}
+    {% else %}
+        {# ensure centre is not set #}
+        {% do regn.update({"centre": none}) %}
+        {% if not regn["rot_grid"] %}
+          {# actual pole #}
+          {% do regn.update({"pole": none |rot_pole(do_rotate=False)}) %}
+        {% endif %}
+    {% endif %}
+    {# else pole already set in gui #}
+    {% if regn["std_model"] == "custom" %}
+        {% for resln in regn["reslns"] %}
+            {% do resln.update({"corner": {}}) %}
+                {% do resln["corner"].update({"EG": resln["npts"] | bot_left_corner(resln["delta"],resln["offset"],centre=regn["centre"],blc=resln['blc'],do_rotate=regn["rot_grid"], ENDGame=true)}) %}
+                {% do resln["corner"].update({"ND": resln["npts"] | bot_left_corner(resln["delta"],resln["offset"],centre=regn["centre"],blc=resln['blc'],do_rotate=regn["rot_grid"])}) %}
+        {% endfor %}
+    {% endif %}
+{% endfor %}
+
+
+{# ############################# LFRIC Ancillary generation set up ############################# #}
+{# Do a dictionary with ancillaries to convert and its filename #}
+{# Entries:
+0. Filename, to pick up for the regridding
+2. sub-directory where they should go
+3. Task creating UM ancil so it can follow in the graphing
+
+#}
+{% if MAKE_LFRIC %}
+    {%- set ancils_2_ugrid = {} -%}
+    {% do ancils_2_ugrid.update({"lsm":["qrparm.mask","land_sea_mask","lct_postproc_c4"]}) %}
+    {% do ancils_2_ugrid.update({"vegfrac":["qrparm.veg.frac","","lct_postproc_c4"]}) %}
+    {% do ancils_2_ugrid.update({"hydtop":["qrparm.hydtop","hydrol_lsh/hydrosheds","topographic_index"]}) %}
+    {% do ancils_2_ugrid.update({"vegfunc":["qrparm.veg.func","","canopy_heights"]}) %}
+    {% do ancils_2_ugrid.update({"soil":["qrparm.soil_cci","","soil_albedo"]}) %}
+    {% do ancils_2_ugrid.update({"sea":["qrclim.sea.nc","general_sea/GlobColour/","clim_sea"]}) %}
+    {% do ancils_2_ugrid.update({"orog":["qrparm.orog","orography/globe30/","cap_orog"]}) %}
+    {% do ancils_2_ugrid.update({"ozone":["qrclim.ozone","ozone/undefined/","fix_time_cap_ozone"]}) %}
+    {% do ancils_2_ugrid.update({"seaice":["qrclim.seaice","seaice/hadisst_6190/v4/","cap_sstice"]}) %}
+    {% do ancils_2_ugrid.update({"sst":["qrclim.sst","sst/hadisst_6190/v1/","cap_sstice"]}) %}
+    {% do ancils_2_ugrid.update({"aerosols":["qrclim.aerosols.nc","/aerosol_clims/glomap","clim_aerosol"]}) %}
+{% endif %}

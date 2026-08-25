@@ -1,0 +1,95 @@
+    [[ANCIL_CAP_AERO]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_general_aero
+
+    [[ANCIL_CAP_LAND]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_general_land
+
+{# Loop over regions and resolutions and make new ancillaries as required #}
+{% for regn in REGNS %}
+    {% for resln in regn["reslns"] %}
+
+        {# 3D ANCILS #}            
+        {% if resln["3D_ancils"] %}            
+            {% for acl in AERO_CLIMS %}
+    [[{{ancil(regn, resln)}}_cap_{{acl}}]]
+        # Other aerosol climatologies.
+        inherit = {{ancil(regn, resln)}}, ANCIL_CAP_AERO
+        [[[environment]]]
+                    {# Set levels sets with different RHcrit profiles 
+                    to all use the same ancillary directory  #}
+                     {% if resln["levset"] == "L70_40km_0.97_0.9_3.4km" 
+                       or  resln["levset"] == "L70_40km_0.99_0.9_3.4km" 
+                       or  resln["levset"] == "L70_40km_0.99" %}
+            LEV_SET = "L70_40km"
+                     {% elif resln["levset"] == "L80_38p5km_0.97_0.9_3.4km" 
+                       or  resln["levset"] == "L80_38p5km_0.99_0.9_3.4km" 
+                       or  resln["levset"] == "L80_38p5km_0.99" %}
+            LEV_SET = "L80_38p5km"
+                     {% elif resln["levset"] == "L140_40km_0.99_0.9_3.4km" 
+                         or  resln["levset"] == "L140_40km_0.99" %}
+            LEV_SET = "L140_40km"
+                     {% else %}
+            LEV_SET = {{resln["levset"]}}
+                     {% endif %}
+            NLEVS = {{(resln["levset"]|vert_levs)["nlevs"]}}
+            ROSE_APP_OPT_CONF_KEYS = {{acl}}
+            
+                     {% if resln["levset"] == "L90_40km" %}
+            AERO_DIR=$ROSE_DATA/etc/ancil_master_aero_L90_cap
+                     {% else %}
+            AERO_DIR=$ROSE_DATA/etc/ancil_master_cap/aero_clims/GA6.0_antie/{{resln["levset"]}}_20YR/v2
+                     {% endif %}
+
+            {% endfor %}
+
+        {% endif %} {#   end of if resln["3D_ancils"] #}
+
+        {# DUST #}
+        {% if resln["arcl_dust_anc"] %}
+
+    [[{{ancil(regn, resln)}}_cap_dust]]
+        # Dust aerosol climatology.
+        inherit = {{ancil(regn, resln)}}, ANCIL_CAP_AERO
+        [[[environment]]]
+                    {# Set levels sets with different RHcrit profiles 
+                    to all use the same ancillary directory  #}
+                     {% if resln["levset"] == "L70_40km_0.97_0.9_3.4km" 
+                       or  resln["levset"] == "L70_40km_0.99_0.9_3.4km" 
+                       or  resln["levset"] == "L70_40km_0.99" %}
+            LEV_SET = "L70_40km"
+                     {% elif resln["levset"] == "L80_38p5km_0.97_0.9_3.4km" 
+                         or  resln["levset"] == "L80_38p5km_0.99_0.9_3.4km" 
+                         or  resln["levset"] == "L80_38p5km_0.99" %}
+            LEV_SET = "L80_38p5km"
+                     {% elif resln["levset"] == "L140_40km_0.99_0.9_3.4km" 
+                         or  resln["levset"] == "L140_40km_0.99" %}
+            LEV_SET = "L140_40km"
+                     {% else %}
+            LEV_SET = {{resln["levset"]}}
+                     {% endif %}
+            NLEVS = {{(resln["levset"]|vert_levs)["nlevs"]}}
+            ROSE_APP_OPT_CONF_KEYS = dust
+            {% if resln["levset"] == "L90_40km" %}
+            AERO_DIR=$ROSE_DATA/etc/ancil_master_aero_L90_cap
+            {% else %}
+            AERO_DIR=$ROSE_DATA/etc/ancil_master_cap/aero_clims/GA6.0_antie/{{resln["levset"]}}_20YR/v2
+            {% endif %}
+
+        {% endif %}
+
+
+        {% if resln["alb_anc"] %}
+    [[{{ancil(regn, resln)}}_cap_land]]
+        # SW snow-free surface albedo.
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_LAND
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS = land
+        {% endif %}
+
+
+    {% endfor %} {# ...for resln in regn["reslns"] #}
+{% endfor %} {# ...for regn in REGNS #}

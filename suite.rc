@@ -1,0 +1,116 @@
+#!jinja2
+
+{# ################################ ANCIL-ONLY Nesting suite set up ################################ #}
+
+{# Maximum number of tasks that can be active at any one time #}
+{% set MAX_ACTIVE_TASKS = 20 %}
+
+{# Error handling behaviours #}
+{% set TASK_MAIL_EVENTS_COMMAND = "retry, submission retry, failed, submission failed, submission timeout, timeout" %}
+
+
+{# IF a rose-app-SITE.conf exists for a site, use it.#}
+{% set TASK_RUN_COMMAND = "rose task-run -v --opt-conf-key='(" + SITE + ")' " %}
+
+{# Load site-specific variables used as logical switches in the suite definition,
+   e.g. IDL is installed? extract and build on the same platform? #}
+{% from 'site/' + SITE + '/suite-vars.rc' import PORT_FILES, TRANSFORM_DIR, KGO_DIR %}
+
+{# List of aerosol cliomatology ancillaries the nesting suite will make #}
+{% set AERO_CLIMS = ["biog", "biom", "blck", "dust", "ocff", "sslt", "sulp"] %}
+
+{# Define USE_UKCA for those systems where it is not defined #}
+{% if USE_UKCA is not defined %}
+  {% set USE_UKCA= false %}
+{% endif %}
+
+{# Define ARCHIVE_ANCILS for those systems where it is not defined #}
+{% if ARCHIVE_ANCILS is not defined %}
+  {% set ARCHIVE_ANCILS= false %}
+{% endif %}
+
+{# Macros used in this suite #}
+%include "suite-macros.rc"
+
+{# Process the variables in rose-suite.conf into a dictionary specifying the properties
+of the triply-nested data structure, REGNS, that contains
+information about all the nested LAMs in this suite #}
+
+%include "suite-setup.rc"
+
+{# Make a dictionary of the commands needed to run each component of the nesting suite #}
+{% set TASK_RUN_COMMANDS = {} %}
+{# Central Ancillary Program for ancillary generation #}
+{% do TASK_RUN_COMMANDS.update({"ancils": TASK_RUN_COMMAND ~ ' --path="share/fcm_make_cap" ${TASK_RUN_EXTRA_OPTS:-}'}) %}
+{# pptoanc for ancillary generation from PP files #}
+{% do TASK_RUN_COMMANDS.update({"pptoanc": TASK_RUN_COMMAND ~ ' --path="share/fcm_make_um_utils" ${TASK_RUN_EXTRA_OPTS:-}'}) %}
+
+{# ################################ Scheduling and dependencies ################################ #}
+
+[cylc]
+    UTC mode = True
+    [[events]]
+        timeout          = P1D
+
+[scheduling]
+    [[queues]]
+        [[[default]]]
+            limit = {{MAX_ACTIVE_TASKS}}
+
+    [[dependencies]]
+             graph = """
+%include "suite-graph/master.rc"
+                     """
+
+{# ################################ Task families ################################# #}
+
+[runtime]
+    [[root]]
+        script = {{TASK_RUN_COMMAND}}
+        env-script = eval $(rose task-env)
+        [[[environment]]]
+            ULIMIT_SETTING = unlimited
+            TMPDIR = $CYLC_TASK_WORK_DIR
+
+        [[[events]]]
+            mail events = {{TASK_MAIL_EVENTS_COMMAND}}
+            submission timeout         = P1D
+
+    [[HOST_LOCAL]]
+        # Tasks that run on the suite host or group.
+
+    [[HOST_HPC]]
+        # Tasks that the run on HPC host or group.
+        [[[job]]]
+            execution retry delays = PT30M
+            submission retry delays = 3*PT5M,3*PT15M,3*PT30M
+
+    [[HOST_IDL]]
+        # Tasks that the run on IDL server host or group.
+
+    [[INSTALL_COLD]]
+        [[[environment]]]
+            ROSE_TASK_APP = install_cold
+
+    [[install_cold_idl]]
+        inherit = INSTALL_COLD, HOST_IDL
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS = {{SITE}}-idl
+
+    [[install_cold_hpc]]
+        inherit = INSTALL_COLD, HOST_HPC
+        [[[environment]]]
+
+{% if KGO_TEST %}
+    [[ROSE_ANA]]
+        env-script = "$( eval rose task-env )"
+        [[[environment]]]
+            DIR0={{KGO_DIR}}/{{KGO_TEST_NAME}}
+            DIR1=${ROSE_SUITE_DIR}/
+            KGO=0
+{% endif %}
+
+    {% include "suite-runtime/master.rc" %}
+
+{# Site-specific details that add to (or override) the core suite definition. #}
+{% include 'site/' + SITE + '/suite-adds.rc' %}

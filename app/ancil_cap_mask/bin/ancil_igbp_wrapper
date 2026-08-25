@@ -1,0 +1,27 @@
+#!/bin/bash
+#-------------------------------------------------------------------------------
+# (C) Crown copyright Met Office. All rights reserved.
+#-------------------------------------------------------------------------------
+# NAME
+#     ancil_igbp_wrapper
+#
+# SYNOPSIS
+#     ancil_igbp_wrapper
+#
+# DESCRIPTION
+#     Simple wrapper script to link IGBP input files for Central Ancillary
+#     Program.
+#
+# ENVIRONMENT
+#     All variables are expected to be provided by the run-time environment.
+#
+#-------------------------------------------------------------------------------
+set -eu
+
+# Link to IGBP dataset
+export FILENV=main_assign
+
+# Run the CAP
+rose mpi-launch -v central_ancillary.exe
+
+

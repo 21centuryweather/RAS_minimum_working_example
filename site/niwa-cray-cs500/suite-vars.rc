@@ -1,0 +1,3 @@
+{% set PORT_FILES = false %}
+{% set TRANSFORM_DIR = "/opt/niwa/um_sys/um/ancil/data/transforms" %}
+{% set KGO_DIR = "/path/to/kgo" %}

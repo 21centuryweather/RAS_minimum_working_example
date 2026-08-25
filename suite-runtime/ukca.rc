@@ -1,0 +1,100 @@
+
+    [[ANCIL_CAP_SULPDMS]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_sulpdms
+ 
+    [[ANCIL_CAP_CHLORO]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_chloro
+ 
+{% if UKCA_FROM_ANTS %}
+    [[ANCIL_ANTS_UKCA]]
+        inherit = ANCIL_ANTS, HOST_ANTS_MPP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_ants_ukca
+{% else %}
+    [[ANCIL_UKCA]]
+        inherit = ANCIL, HOST_HPC
+        script = {{TASK_RUN_COMMANDS["ancils"]}} 
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_ukca
+            DEST_FILE   = 'qrclim.biog' 
+{% endif %}
+
+{# Loop over regions and resolutions and make new ancillaries as required #}
+{% for regn in REGNS %}
+    {% for resln in regn["reslns"] %}
+
+    {# Land-sea mask -No lakes #}
+    [[{{ancil(regn, resln)}}_cap_mask_nolakes]]
+        inherit = {{ancil(regn, resln)}}, ANCIL_CAP_MASK
+        post-script= """ echo 'no links needed' """
+        [[[environment]]]
+            MIN_LAKE_AREA = 1000000.0
+            ROSE_APP_OPT_CONF_KEYS = seanolakes
+            OFFSET_Y = {{regn["igbp_offset"][0]}}
+            OFFSET_X = {{regn["igbp_offset"][1]}}
+
+    {# Ocean DMS #}
+    [[{{ancil(regn, resln)}}_cap_sulpdms]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_SULPDMS
+
+    {# Ocean chlorophyll #}
+    [[{{ancil(regn, resln)}}_cap_chloro]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_CHLORO
+
+    {# UKCA NetCDF ancils #}
+        {% if UKCA_FROM_ANTS %}
+    [[{{ancil(regn, resln)}}_ants_ukca_s]]
+        inherit = {{ancil(regn, resln)}},ANCIL_ANTS_UKCA
+        {% if PORT_FILES %}
+        post-script ="""rsync -avz {{resln["ancildir"]}}/ukca $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/"""
+        {% endif %}
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS=s
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+
+    {# Part-2 BC/OC #}
+    [[{{ancil(regn, resln)}}_ants_ukca_c]]
+        inherit = {{ancil(regn, resln)}},ANCIL_ANTS_UKCA
+        {% if PORT_FILES %}
+        post-script ="""rsync -avz {{resln["ancildir"]}}/ukca $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/"""
+        {% endif %}
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS=c
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+
+    {# Part-3 Oxidants #}
+    [[{{ancil(regn, resln)}}_ants_ukca_ox]]
+        inherit = {{ancil(regn, resln)}},ANCIL_ANTS_UKCA
+        {% if PORT_FILES %}
+        post-script ="""rsync -avz {{resln["ancildir"]}}/ukca $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/"""
+        {% endif %}
+        [[[environment]]]
+            ROSE_APP_OPT_CONF_KEYS=ox
+            VERT_GRID = {{resln["ancildir"]}}/vertlevs.nl
+
+        {% else %}
+    {# Use Biogenic 3-D ancil as template #}
+    {# Part-1 S-cycle #}
+    [[{{ancil(regn, resln)}}_ukca_s]]
+        inherit = {{ancil(regn, resln)}},ANCIL_UKCA
+        [[[environment]]]
+            FILE_LIST = 'ukca_s.files'
+
+    {# Part-2 BC/OC #}
+    [[{{ancil(regn, resln)}}_ukca_c]]
+        inherit = {{ancil(regn, resln)}},ANCIL_UKCA
+        [[[environment]]]
+            FILE_LIST = 'ukca_c.files'
+    
+    {# Part-3 Oxidants #}
+    [[{{ancil(regn, resln)}}_ukca_ox]]
+        inherit = {{ancil(regn, resln)}}, ANCIL_UKCA
+        [[[environment]]]
+            FILE_LIST = 'ukca_ox.files'
+        {% endif %} {# if USE_ANTS #}
+    {% endfor %} {# ...for resln in regn["reslns"] #}
+{% endfor %} {# ...for regn in REGNS #}

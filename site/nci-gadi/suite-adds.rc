@@ -1,0 +1,385 @@
+# Site-specific configuration for NCI Gadi
+
+# These CPU counts may need to be increased for very large jobs,
+# they are tested at a grid size of 2000x2000
+#
+# Using more CPUs is mostly to get more memory, ANTS tasks do not
+# parallelise well so any speed increase will most likely be minimal
+#
+# Very small jobs can set NCI_QUEUE="background" which will run on the
+# login node with one cpu
+
+{% set CAP_NCPUS = 8 %}
+{% set ANTS_NCPUS = 4 %}
+{% set REGRID_NCPUS = 20 %}
+{% set MODULE_AVAIL = 'module use /g/data/hr22/modulefiles /g/data/access/ngm/modules' %}
+{% set PROJECT = PROJECT | default(environ['PROJECT']) %}
+
+# Correct value for normal and express queues
+{% set NCI_MEM_GB_PER_CPU = 4 %}
+
+[runtime]
+    [[root]]
+        [[[events]]]
+            mail events = 
+        [[[environment]]]
+            # Local Jasmin TIDS mirror
+            TIDS = /g/data/access/TIDS
+            ROSE_TASK_N_JOBS = ${PBS_NCPUS:-1}
+            ANTS_NPROCESSES = 1 # ${PBS_NCPUS:-1} # This ants is broken for ANTS_NPROCESSES > 1
+
+    [[HOST_LOCAL]]
+        [[[remote]]]
+            host = localhost
+        [[[job]]]
+            batch system = background
+            execution time limit = PT10M
+
+    [[HOST_HPC]]
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load cap/9.2
+        # ants module is loaded in site/nci_gadi/ants-launch
+        ulimit -s unlimited
+        """
+        [[[remote]]]
+            host = gadi
+        [[[job]]]
+            batch system = background
+            execution time limit = PT10M
+            execution retry delays =
+            submission retry delays =
+        [[[directives]]]
+            -q = {{NCI_QUEUE}}
+            {{ "-P =" ~ NCI_PROJECT if NCI_PROJECT != "" else ""}}
+            -l ncpus = {{1}}
+            -l mem = {{1 * NCI_MEM_GB_PER_CPU}}gb
+            -l jobfs = 10gb
+            -l storage = gdata/access+gdata/hr22+gdata/ki32{{ "+" ~ NCI_STORAGE if NCI_STORAGE != "" else ""}}
+            -W umask = 0022
+
+    [[HOST_ANTS_MPP]]
+        inherit = HOST_HPC
+        [[[job]]]
+            {% if NCI_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -l ncpus = {{ANTS_NCPUS}}
+            -l mem = {{ANTS_NCPUS * NCI_MEM_GB_PER_CPU}}gb
+            -l jobfs = 40gb
+
+    [[HOST_IDL]]
+        inherit = HOST_HPC
+
+    [[HOST_ANTS_SERIAL]]
+        inherit = HOST_HPC
+
+    [[SITE_SERIAL_SMALL_JOB]]
+
+    [[REALLY_SMALL_JOB]]
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -l ncpus = 1
+            -l mem = {{1 * NCI_MEM_GB_PER_CPU}}gb
+            -l walltime=00:05:00
+
+    {# Directives for aerosols #}
+    [[LONG_UGRID_JOB]]
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -l ncpus=48
+            -l mem = {{48 * NCI_MEM_GB_PER_CPU}}gb
+            -l walltime=03:00:00
+
+    [[ANCIL_CAP]]
+        # vegfrac, orog, ozone, sstice, smcsnow
+        inherit = HOST_HPC
+        [[[job]]]
+            {% if NCI_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -l ncpus = {{CAP_NCPUS}}
+            -l mem = {{CAP_NCPUS * NCI_MEM_GB_PER_CPU}}gb
+            -l jobfs = 10gb
+
+    {# Ad-hoc fix for ozone ancil datetime 
+    TO BE REMOVED once ported from CAP to ANTS
+    #}
+    [[FIX_CAP_OZONE]]
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load python3-as-python
+        module load cap/9.2
+        module load /g/data/access/ngm/modules/lfric-analysis/2024.07.1
+        # ants module is loaded in site/nci_gadi/ants-launch
+        ulimit -s unlimited
+        """
+
+    [[ANCIL_AERO]]
+        # biog, biom, blck, dust, ocff, sslt, sulp
+        [[[job]]]
+            {% if NCI_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT2H
+            {% endif %}
+        [[[directives]]]
+            -q = hugemem
+            -l ncpus = {{REGRID_NCPUS}}
+            -l mem = {{REGRID_NCPUS * 30}}gb
+            -l jobfs = 40gb
+
+    [[ANCIL_CLIM_AEROSOL]]
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load cap/9.2
+        module load nco
+        module load /g/data/access/ngm/modules/analysis3/23.07
+        # ants module is loaded in site/nci_gadi/ants-launch
+        ulimit -s unlimited
+        """
+        [[[directives]]]
+            -q = hugemem
+            -l walltime=02:00:00
+            -l ncpus = 16
+            -l mem = {{16 * 30}}gb
+            -l jobfs = 240gb
+
+    [[ANCIL_MEAN_OROG]]
+        [[[job]]]
+            {% if NCI_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -q = hugemem
+            -l ncpus = {{REGRID_NCPUS}}
+            -l mem = {{REGRID_NCPUS * 30}}gb
+            -l jobfs = 10gb
+
+    [[ANCIL_TOPOGRAPHIC_INDEX]]
+        [[[directives]]]
+            -q = hugemem
+            -l ncpus = 8
+            -l mem = {{8 * 30}}gb
+
+{% if USE_UKCA %}
+     {% if not UKCA_FROM_ANTS %}
+    [[ANCIL_UKCA]]
+        # ukca_s, ukca_c, ukca_ox
+        init-script = """
+        module use /g/data/access/ngm/modules
+        module load ants/2.1.0
+        ulimit -s unlimited
+        """
+        [[[job]]]
+            {% if NCI_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT2H
+            {% endif %}
+        [[[directives]]]
+            -q = hugemem
+            -l ncpus = {{REGRID_NCPUS}}
+            -l mem = {{REGRID_NCPUS * 30}}gb
+            -l jobfs = 10gb
+     {% endif %}
+{% endif %}
+
+    [[ANCIL_VEG_FUNC]]
+        # lai, canopy_heights
+        [[[job]]]
+            execution time limit = PT120M
+
+    [[ANCIL_ANTS]]
+        inherit = None, HOST_ANTS_SERIAL
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load cap/9.2
+        # ants module is loaded in site/nci_gadi/ants-launch
+        module load /g/data/access/ngm/modules/analysis3/23.07
+        ulimit -s unlimited
+        """
+        [[[environment]]]
+            PATH = $ROSE_SUITE_DIR/site/nci-gadi:$PATH
+            CONTRIB_PATH = ${CYLC_SUITE_DEF_PATH}/src/contrib
+            ANTS_MODULE =  ants/ug-2.1.0
+        [[[directives]]]
+            -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
+
+    [[ANCIL_UGANTS]]
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load cap/9.2
+        # ants module is loaded in site/nci_gadi/ants-launch
+        ulimit -s unlimited
+        """
+        [[[environment]]]
+            UG_ANTS_MODULE = ants/ug-2.1.0
+        [[[directives]]]
+            -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
+
+    [[ANCIL_TOP]]
+        [[[job]]]
+            batch system = background
+
+    [[ANCIL_VERSIONS]]
+            init-script = """
+            module use /g/data/access/ngm/modules
+            module load ants/2.1.0
+            ulimit -s unlimited
+            """
+        [[[job]]]
+            batch system = background
+
+    [[ROSE_ANA]]
+        init-script = """
+        module use ~access/modules
+        module load pythonlib/mule
+        ulimit -s unlimited
+        """
+
+    [[ANCIL_LCT]]
+        init-script = """
+        module use ~access/modules
+        module use /g/data/access/ngm/modules
+        module load cap/9.2
+        module load /g/data/access/ngm/modules/analysis3/23.07
+        # ants module is loaded in site/nci_gadi/ants-launch
+        ulimit -s unlimited
+        """
+        [[[environment]]]
+            PATH = $ROSE_SUITE_DIR/site/nci-gadi:$PATH
+
+    [[REMAP_2_UGRID]]
+
+        {% for regn in REGNS %}
+            {% for resln in regn["reslns"] %}
+                [[{{ancil(regn, resln)}}_add_horizon_angles]]
+                    pre-script="""
+                               module load netcdf
+                               module load intel-compiler/2021.10.0
+                               """
+
+                [[{{ancil(regn, resln)}}_canopy_heights]]
+                    [[[directives]]]
+                        -l ncpus = 8
+                        -l mem = {{8 * NCI_MEM_GB_PER_CPU}}gb
+            {% endfor %}
+        {% endfor %}
+
+   [[install_ants]]
+       init-script=""
+
+{% if MAKE_LFRIC %}
+    [[BUILD_HPC_LFRIC]]
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -P = {{PROJECT}}
+            -l mem=40GB
+            -l walltime=02:00:00
+            -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
+            -W umask=0022
+        [[[environment]]]
+            PROJECT = {{PROJECT}}
+
+    [[BUILD]]
+        [[[environment]]]
+            PLATFORM_CONFIG = nci-x86-ifort
+
+    [[LFRIC_ENV]]
+        pre-script = """
+                     {{MODULE_AVAIL}}
+                     module unload openmpi/4.0.1
+                     module unload intel-mkl/2019.3.199
+                     module unload python2/2.7.16
+                     module load /g/data/access/ngm/modules/envs/lfric/202410/intel-openmpi
+                     module list 2>&1
+                     """
+
+    [[COMPILE]]
+        inherit = BUILD_HPC_LFRIC, LFRIC_ENV
+        [[[environment]]]
+	    WORKING_DIR           = $CYLC_TASK_WORK_DIR
+            MAKE_THREADS          = 4
+            ROSE_TASK_APP         = compile
+
+    [[MESHES]]
+        init-script = """
+                      module use /projects/access/modules
+                      ulimit -s unlimited
+                      module load openmpi/4.0.1
+                      module load intel-mkl/2019.3.199
+                      module load python2/2.7.16
+                      """
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -l ncpus=1
+            -l mem=4GB
+            -l walltime=00:20:00
+            -l storage=gdata/access+gdata/hr22+gdata/ki32+scratch/access+gdata/{{environ.get('PROJECT','NO_PROJECT')}}
+            -W umask=0022
+
+    [[REMAP_2_UGRID]]
+        init-script = """
+                      module load python3-as-python
+                      module load /g/data/access/ngm/modules/lfric-analysis/2024.07.1
+                      """
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -l mem=32G
+            -l ncpus=8
+            -l walltime=01:00:00
+
+    [[ANCIL_CREATE_OROG_HORIZON]]
+        [[[environment]]]
+            SOCRATES_PROG_ENV = 
+
+    {# LFRIC REMAP MPP #}
+    [[REMAP_2_UGRID_MPP]]
+        init-script = module load /g/data/access/ngm/modules/lfric-analysis/2024.07.1
+        [[[ job ]]]
+            batch system = pbs
+        [[[ remote ]]]
+            host = gadi.nci.org.au
+        [[[directives]]]
+            -l mem=32G
+            -l ncpus=8
+            -l walltime=01:00:00
+
+    [[fcm_make_lfric]]
+        inherit = HOST_LOCAL
+
+{% endif %}

@@ -1,0 +1,205 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import argparse
+from textwrap import dedent
+
+def parse_args():
+    """Parses and returns command line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('ancildir', help="Ancillary file directory")
+    args = parser.parse_args()
+    return args
+
+def ancil_filenames(ancildir):
+    """Makes a file called ancil_filenames specifying environment
+       variables associated with each ancillary file used in the 
+       nesting suite. These are used in the items namelist of the
+       UM reconfiguration.
+
+       Arguments:
+         ancildir -- directory where the ancil_filenames file will
+                     be placed
+
+       Returns:
+         The ancil_filenames file in directory ancildir.   
+    """
+    filenames = ancildir + "/ancil_filenames"
+    try:
+        with open(filenames, "w") as ofp:
+            ofp.write(dedent("""
+            # Land sea mask
+            export UM_ANCIL_MASK_FILE=qrparm.mask
+            # Land fractions (does not contain edits to NWP ancils)
+            export UM_ANCIL_LANDFRAC_FILE=qrparm.landfrac
+            # Lake mask
+            export UM_ANCIL_LAKE_FILE=qrparm.lake
+            # Orography
+            export UM_ANCIL_OROG_FILE=qrparm.orog
+            # Mean Orography
+            export UM_ANCIL_OROG_FILE_MN=qrparm.orog.mn            
+            # Soil parameters
+            export UM_ANCIL_SOIL_FILE=qrparm.soil
+            # Soil parameters, z0 (for now)
+            export UM_ANCIL_SOILZ0_FILE=qrparm.soil_roughness
+            # Soil dust
+            export UM_ANCIL_SOILDUST_FILE=qrparm.soil.dust
+            # Soil temperature climatology
+            export UM_ANCIL_SLT_FILE=qrclim.slt
+            # Soil moisture and snow amount climatology
+            export UM_ANCIL_SMOW_FILE=qrclim.smow
+            # Sea surface temperature climatology
+            export UM_ANCIL_SST_FILE=qrclim.sst
+            # Sea ice climatology
+            export UM_ANCIL_SEAICE_FILE=qrclim.seaice
+            # Vegetation fractions
+            export UM_ANCIL_VEGFRAC_FILE=qrparm.veg.frac
+            # Vegetation functional types
+            export UM_ANCIL_VEGFUNC_FILE=qrparm.veg.func
+            # Disturbed fraction of vegetation
+            export UM_ANCIL_VEGDIST_FILE=qrparm.veg.dist
+            # Ozone climatology
+            export UM_ANCIL_OZONE_FILE=qrclim.ozone
+            # Biogenic aerosols
+            export UM_ANCIL_BIOGENIC_FILE=qrclim.biog
+            # Biomass burning aerosol climatology
+            export UM_ANCIL_ARCLBIOM_FILE=qrclim.biom
+            # Black carbon (soot) aerosol climatology
+            export UM_ANCIL_ARCLBLCK_FILE=qrclim.blck
+            # Dust aerosol climatology
+            export UM_ANCIL_ARCLDUST_FILE=qrclim.dust
+            # Organic carbon from fossil fuel aerosol climatology
+            export UM_ANCIL_ARCLOCFF_FILE=qrclim.ocff
+            # Sea salt aerosol climatology
+            export UM_ANCIL_ARCLSSLT_FILE=qrclim.sslt
+            # Sulphate aerosol climatology
+            export UM_ANCIL_ARCLSULP_FILE=qrclim.sulp
+            # Land-surface albedo
+            export UM_ANCIL_GENLAND_FILE=qrclim.land
+            export UM_ANCIL_GENSEA_FILE=qrclim.sea
+            # Large Scale Hydroglogy TOP-index (mean/sd/combined)
+            export UM_ANCIL_LSH_TINDMN_FILE=qrparm.hydtopmn
+            export UM_ANCIL_LSH_TINDSD_FILE=qrparm.hydtopsd
+            export UM_ANCIL_LSH_TIND_FILE=qrparm.hydtop
+            # UKCA Emission Ancils                                                                                                                                          
+            export UM_ANCIL_CLASS_DMSCONC=qrclim.sulpdms                      
+            export UM_NETCDF_UKCAEMISS_BCBIOF_FILE=ukca_emiss_BC_biofuel.nc   
+            export UM_NETCDF_UKCAEMISS_BCFOSS_FILE=ukca_emiss_BC_fossil.nc 
+            export UM_NETCDF_UKCAEMISS_DMS_FILE=ukca_emiss_DMS.nc          
+            export UM_NETCDF_UKCAEMISS_MONOTP_FILE=ukca_emiss_Monoterp.nc    
+            export UM_NETCDF_UKCAEMISS_OCBIOF_FILE=ukca_emiss_OC_biofuel.nc  
+            export UM_NETCDF_UKCAEMISS_OCFOSS_FILE=ukca_emiss_OC_fossil.nc
+            export UM_NETCDF_UKCAEMISS_SO2HI_FILE=ukca_emiss_SO2_high.nc
+            export UM_NETCDF_UKCAEMISS_SO2LOW_FILE=ukca_emiss_SO2_low.nc
+            export UM_NETCDF_UKCAEMISS_SO2NAT_FILE=ukca_emiss_SO2_nat.nc
+            export UM_NETCDF_UKCAEMISS_BCBIOM_FILE=ukca_emiss_BC_biomass.nc
+            export UM_NETCDF_UKCAEMISS_OCBIOM_FILE=ukca_emiss_OC_biomass.nc 
+            # UKCA Oxidant files for Offline Chem                                                                                                                           
+            export UM_NETCDF_UKCAOXID_O3_FILE=ukca_oxid_clim_O3.nc
+            export UM_NETCDF_UKCAOXID_OH_FILE=ukca_oxid_clim_OH.nc   
+            export UM_NETCDF_UKCAOXID_NO3_FILE=ukca_oxid_clim_NO3.nc 
+            export UM_NETCDF_UKCAOXID_H2O2_FILE=ukca_oxid_clim_H2O2.nc 
+            export UM_NETCDF_UKCAOXID_HO2_FILE=ukca_oxid_clim_HO2.nc  
+            """))
+    except IOError:
+        raise UserWarning("Problem writing file " + filenames + "\n")  
+    return filenames
+
+def ancil_versions(ancildir, filenames):
+    """Creates an ancillary versions file, ancil_versions, describing 
+       the ancillary files used in the nesting suite. This file can
+       be pointed to by nesting suite runs at a later date to save
+       re-making ancillary files (provided they still exist on disk).
+
+       Arguments:
+         ancildir  -- directory where the ancil_versions file will
+                      be placed
+         filenames -- ancil_filenames file containing information on
+                      ancillary filenames used in the nesting suite
+       Returns:
+         The full path to the ancil_versions file.   
+    """
+    versions = ancildir +"/ancil_versions"
+    try:
+        with open(versions, "w") as ofp:
+            ofp.write(dedent("""
+            # File containing filenames version file
+            UM_ANCIL_FILENAMES=$(pwd)/ancil_filenames
+            # Source file containing ancil filenames
+            . $UM_ANCIL_FILENAMES
+            # Parent directory for files
+            UM_ANCIL_NSDIR=$(pwd)
+            UKCA_ANCIL_NCDIR=$UM_ANCIL_NSDIR/ukca
+            UKCA_ANCIL_EMDIR=$UKCA_ANCIL_NCDIR/ukca_emiss               
+            UKCA_ANCIL_OXDIR=$UKCA_ANCIL_NCDIR/oxidants 
+
+            # Directories
+            export UM_ANCIL_MASK_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_LANDFRAC_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_LAKE_MASK_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_OROG_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SOIL_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SOILZ0_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SOILDUST_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SLT_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SMOW_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SST_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_SEAICE_DIR=$UM_ANCIL_NSDIR    
+            export UM_ANCIL_VEGFRAC_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_VEGFUNC_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_VEGDIST_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_OZONE_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_BIOGENIC_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLBIOM_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLBLCK_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLDUST_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLOCFF_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLSSLT_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_ARCLSULP_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_GENLAND_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_GENSEA_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_LSH_TOPIND_DIR=$UM_ANCIL_NSDIR
+            export UM_ANCIL_CLASS_DMSCONC_DIR=$UM_ANCIL_NSDIR        
+            export UM_NETCDF_UKCAEMISS_BCBIOF_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1  
+            export UM_NETCDF_UKCAEMISS_BCFOSS_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1
+            export UM_NETCDF_UKCAEMISS_DMS_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1   
+            export UM_NETCDF_UKCAEMISS_MONOTP_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1
+            export UM_NETCDF_UKCAEMISS_OCBIOF_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1
+            export UM_NETCDF_UKCAEMISS_SO2HI_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1
+            export UM_NETCDF_UKCAEMISS_OCFOSS_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1                  
+            export UM_NETCDF_UKCAEMISS_SO2NAT_DIR=$UKCA_ANCIL_EMDIR/andres_kasgnoc/v1
+            export UM_NETCDF_UKCAEMISS_SO2LOW_DIR=$UKCA_ANCIL_EMDIR/cmip5/2000/v1 
+            export UM_NETCDF_UKCAEMISS_BCBIOM_DIR=$UKCA_ANCIL_EMDIR/gfed3.1/clim_2002_2011/v2
+            export UM_NETCDF_UKCAEMISS_OCBIOM_DIR=$UKCA_ANCIL_EMDIR/gfed3.1/clim_2002_2011/v2
+            export UM_NETCDF_UKCAOXID_O3_DIR=$UKCA_ANCIL_OXDIR/ccmi_refc1_anqdg/clim_1988_2010/v1                                                                           
+            export UM_NETCDF_UKCAOXID_OH_DIR=$UKCA_ANCIL_OXDIR/ccmi_refc1_anqdg/clim_1988_2010/v1  
+            export UM_NETCDF_UKCAOXID_NO3_DIR=$UKCA_ANCIL_OXDIR/ccmi_refc1_anqdg/clim_1988_2010/v1 
+            export UM_NETCDF_UKCAOXID_H2O2_DIR=$UKCA_ANCIL_OXDIR/ccmi_refc1_anqdg/clim_1988_2010/v1
+            export UM_NETCDF_UKCAOXID_HO2_DIR=$UKCA_ANCIL_OXDIR/ccmi_refc1_anqdg/clim_1988_2010/v1
+            """))
+    except IOError:
+        raise UserWarning("Problem writing file " + versions + "\n")  
+    return versions
+
+def main(inarg):
+    """Creates ancil_versions and ancil_filenames files containing environment 
+       variables that completely describe the ancillary files used in the nesting 
+       suite. These files are sourced by the UM reconfiguration and can be used 
+       in subsequent nesting suite runs.
+
+       Command line arguments:
+         ancildir -- output directory where the files will be placed
+    """
+    
+    # Parse command line arguments
+    args = parse_args()
+
+    # Create ancil_filenames file
+    filenames = ancil_filenames(args.ancildir)
+
+    # Create ancil_versions file
+    versions = ancil_versions(args.ancildir, filenames) 
+   
+if __name__=='__main__':
+    main(sys.argv[1:])

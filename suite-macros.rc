@@ -1,0 +1,34 @@
+{# ########## Macros for setting model directory and file names ########## #}
+
+{# Ancillary task names #}
+{% macro ancil(regn, resln) -%}
+{{regn["name"]}}_{{resln["name"]}}_ancil
+{%- endmacro %}
+
+{# Directory containing ancillary files for each region and resolution #}
+{% macro ancildir(regn, resln) -%}
+$ROSE_DATA/ancils/{{regn["name"]}}/{{resln["name"]}}
+{%- endmacro %}
+
+{# Macro for setting optional configurations to in rose_ana_ancil 
+   for KGOs #}
+{% macro kgo_opt(regn, resln) -%}
+    {%- set opts = [] -%}
+    {# Use the snow-free surface albedo ancillary #}
+    {%- if resln["alb_anc"] -%}
+        {% do opts.append("land") %}
+    {%- endif -%}
+    {# Use 3D aerosol (or just dust) climatology ancillaries #}
+    {%- if resln["3D_ancils"] -%}
+        {% do opts.append("3D_ancils") %}
+    {%- endif -%}
+    {# Use Moruses #}
+    {%- if resln["moruses"] -%}
+        {% do opts.append("moruses") %}
+    {%- endif -%}
+    {# Use SST-SMC-SEAICE clim #}
+    {%- if resln["sstsmc_anc"] -%}
+        {% do opts.append("sstsmc") %}
+    {%- endif -%}
+{{opts|join(" ")}}
+{%- endmacro %}

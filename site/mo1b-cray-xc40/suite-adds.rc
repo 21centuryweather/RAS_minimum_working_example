@@ -1,0 +1,272 @@
+{% set HPC_HOST = "xc" %}
+{% set SERIALQ = "shared" %}
+{% set SERIAL_RUN_CMD = "mpiexec" %}
+{% set PARALLEL_RUN_CMD = "aprun" %}
+{% set IDL_SERVER = "localhost" %}
+{% set LINUX_RUN_CMD = "slurm" %}
+
+[runtime]
+    [[HOST_LOCAL]]
+        [[[remote]]]
+            host = $(rose host-select localhost)
+        [[[job]]]
+            batch system = {{LINUX_RUN_CMD}}
+            execution time limit = PT2M
+        [[[directives]]]
+            --mem=500
+            --ntasks=1
+
+    [[HOST_IDL]]
+        [[[remote]]]
+            host = $(rose host-select {{IDL_SERVER}})
+        [[[job]]]
+            batch system = {{LINUX_RUN_CMD}}
+            execution time limit = PT30M
+        [[[directives]]]
+            --mem=50000
+            --ntasks=1
+        [[[environment]]]
+           HPC_HOST = {{HPC_HOST}}            
+
+    [[HOST_HPC]]
+        [[[remote]]]
+            host = $(rose host-select {{HPC_HOST}})
+        [[[job]]]
+            batch system = pbs
+            execution time limit = PT10M
+        [[[directives]]]  # TODO: are these needed?
+            # Default directives.
+            -S = /bin/bash
+            -q = {{SERIALQ}}
+            -P = {{CHARGING_CODE}}
+
+    [[HOST_ANTS_SERIAL]]
+        inherit = HOST_IDL
+        [[[environment]]]
+           HPC_HOST = {{HPC_HOST}}        
+
+    [[HOST_ANTS_MPP]]
+        [[[remote]]]
+            host = $(rose host-select {{IDL_SERVER}})
+        [[[job]]]
+            batch system = slurm
+        [[[directives]]]
+            # Number of cores
+            --ntasks = 24
+            # Job name
+            --job-name=python_multiprocessing
+            # Memory required per CPU (MB)
+            --mem-per-cpu=6000
+            # set max wallclock time (HH:MM:SS)
+            --time=03:00:00
+        [[[environment]]]
+           HPC_HOST = {{HPC_HOST}}
+
+   [[SLURM]]
+        [[[job]]]
+            batch system = slurm
+
+    [[REALLY_SMALL_JOB]]
+        inherit = SLURM
+        [[[job]]]
+            execution time limit = PT5M
+        [[[directives]]]
+            --mem=1GB
+            --ntasks-per-node=1
+
+
+    [[ANCIL_LOCAL]]
+        [[[environment]]]
+            HPC_HOST = {{HPC_HOST}}
+
+    [[ANCIL_CAP]]
+        init-script = module load cray-snplauncher
+        [[[environment]]]
+            ROSE_LAUNCHER = {{SERIAL_RUN_CMD}}
+            ROSE_LAUNCHER_PREOPTS = -n 1
+        [[[directives]]]
+            -q = {{SERIALQ}}
+ 
+    [[ANCIL_CAP_MASK]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=10GB
+        [[[job]]]
+            execution time limit = PT20M
+
+    [[ANCIL_CAP_OROG]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=15GB
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_VEGFRAC]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=50GB
+        [[[job]]]
+            execution time limit = PT2H
+
+    [[ANCIL_CAP_OZONE]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=5GB
+        [[[job]]]
+            execution time limit = PT30M
+
+    {# Ad-hoc fix for ozone ancil datetime 
+    TO BE REMOVED once ported from CAP to ANTS
+    #}
+    [[FIX_CAP_OZONE]]
+        init-script = """
+                      module load scitools
+                      module swap ifort/16.0_64
+                      module load um_tools
+                      """
+        [[[directives]]]
+            --mem=32G
+            --ntasks = 4
+            --time=01:00:00
+
+    [[ANCIL_CAP_AERO]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=5GB
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_LAND]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=5GB
+        [[[job]]]
+            execution time limit = PT30M
+
+    [[ANCIL_CAP_SSTICE]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=10GB
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_SMCSNOW]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=10GB
+        [[[job]]]
+            execution time limit = PT20M
+
+    [[MASK_OVERRIDES]]
+        pre-script = """
+export PYTHONPATH=$PYTHONPATH:~hadts/test/mule_editmask/lib/:
+export PATH=$PATH:~hadts/test/mule_editmask/bin
+       """
+
+{% if USE_UKCA %}
+    [[ANCIL_CAP_SULPDMS]]
+        [[[directives]]]   
+             -q = {{SERIALQ}}
+             -l select=1:ncpus=1:mem=10GB
+        [[[job]]]
+            execution time limit = PT20M
+ 
+     [[ANCIL_CAP_CHLORO]]
+        [[[directives]]]
+             -q = {{SERIALQ}}
+             -l select=1:ncpus=1:mem=10GB
+        [[[job]]]
+            execution time limit = PT20M
+ 
+     {% if not UKCA_FROM_ANTS %}
+     [[ANCIL_UKCA]]
+         init-script = module load scitools
+        [[[environment]]]
+            ROSE_LAUNCHER = {{SERIAL_RUN_CMD}}
+            ROSE_LAUNCHER_PREOPTS = -n 1
+        [[[directives]]]   
+             -q = {{SERIALQ}}
+             -l select=1:ncpus=1:mem=32GB
+        [[[job]]]
+            execution time limit = PT40M
+
+     {% for regn in REGNS %}
+          {% for resln in regn["reslns"] %}
+
+    [[{{ancil(regn, resln)}}_ukca_s]]
+        [[[directives]]]
+            -l select=1:ncpus=1:mem=6GB
+        [[[job]]]
+            execution time limit = PT10M
+
+          {% endfor %}
+    {% endfor %}
+     {% endif %}
+{% endif %}
+
+{# KGOs #}
+{% if KGO_TEST %}
+    [[ROSE_ANA]]
+        pre-script=module load um_tools
+        [[[job]]]
+            execution time limit = PT12M
+        [[[directives]]]
+            -l ncpus = 1
+            -l mem = 20Gb
+{% endif %}
+{# Archiving #}
+{% if ARCHIVE_ANCILS %}
+    [[ARCHIVE]]
+        pre-script = module load scitools
+        [[[environment]]]
+            MOO_ID=$(cat $HOME/.moosedir/moose|grep user|cut -d = -f2 |tr -d '[:space:]' )
+{% endif %}
+
+
+{######################################################
+
+                UGRID remap tasks
+
+######################################################}
+
+{% set MODULE_AVAIL = 'source /home/d03/lfric/Data/modules/setup' %}
+{% set LFRIC_TARGET_COMPILER = 'intel' %}
+{% set MODULE_VERSIONS = {'intel': '17.0.0.098/6', 'cray': '8.7.0/4'} %}
+{% set MODULE_VERSION = MODULE_VERSIONS[LFRIC_TARGET_COMPILER] %}
+
+{% if MAKE_LFRIC %}
+        [[BUILD]]
+        [[[environment]]]
+            PLATFORM_CONFIG = meto-xc40-cce
+
+        [[LFRIC_ENV]]
+        pre-script = """
+                     {{MODULE_AVAIL}}
+                     module load meto-environment/lfric/{{LFRIC_TARGET_COMPILER}}/{{MODULE_VERSION}}
+                     module load cray-snplauncher/$CRAY_MPICH2_VER
+                     module list 2>&1
+                     """
+        [[COMPILE]]
+            inherit = BUILD_HPC_LFRIC, LFRIC_ENV
+
+        [[[environment]]]
+    	    WORKING_DIR           = $CYLC_TASK_WORK_DIR
+            MAKE_THREADS          = 4
+            ROSE_TASK_APP         = compile
+
+    {# LFRIC REMAP MPP #}
+    [[REMAP_2_UGRID_MPP]]
+        init-script = module load scitools
+        [[[directives]]]
+            --mem=32G
+            --ntasks = 4
+            --time=01:00:00
+
+    [[ANCIL_CREATE_OROG_HORIZON]]
+        [[[environment]]]
+            SOCRATES_PROG_ENV = lfric_ifort19
+
+    {# Directives for aerosols #}
+    [[LONG_UGRID_JOB]]
+        pre-script = ulimit -s unlimited
+        [[[job]]]
+            execution time limit = PT180M
+        [[[directives]]]
+            #--mem=242GB !!! REPLACE THE LINE BELOW BY THIS ONE ONCE IT WORKS,
+            #            !!! IT IS ONLY TO SPEED IT UP
+            --mem=200GB
+            --ntasks-per-node=24
+
+{% endif %}

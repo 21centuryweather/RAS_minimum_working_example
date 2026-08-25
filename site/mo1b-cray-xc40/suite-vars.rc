@@ -1,0 +1,3 @@
+{% set PORT_FILES = true %}
+{% set TRANSFORM_DIR = "/home/h01/frum/ancil/data/transforms" %}
+{% set KGO_DIR = "/data/d03/meso/KGOs/RAS" %}

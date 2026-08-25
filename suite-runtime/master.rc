@@ -1,0 +1,249 @@
+# Ancillary generation tasks.
+
+[runtime]
+    [[ANCIL]]
+
+    [[ANCIL_LOCAL]]
+        inherit = ANCIL, HOST_IDL
+
+    [[ANCIL_CAP]]
+        # Central Ancillary Program tasks.
+        inherit = ANCIL, HOST_HPC
+        script = {{TASK_RUN_COMMANDS["ancils"]}}
+
+    [[ANCIL_TOP]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_top
+
+    [[ANCIL_CAP_MASK]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_mask
+
+    [[ANCIL_CAP_OROG]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_orog
+
+    [[ANCIL_CAP_VEGFRAC]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_vegfrac
+            
+    [[ANCIL_CAP_OZONE]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_ozone
+
+    [[FIX_CAP_OZONE]]
+        inherit = HOST_IDL
+
+    [[ANCIL_CAP_SSTICE]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_sstice
+
+    [[ANCIL_CAP_SMCSNOW]]
+        inherit = ANCIL_CAP
+        [[[environment]]]
+            ROSE_TASK_APP = ancil_cap_smcsnow
+
+    [[ANCIL_VERSIONS]]
+        inherit = ANCIL, HOST_HPC
+        # Family of ancil_*_versions tasks.
+
+    [[ARCHIVE]]
+        inherit = ANCIL, HOST_HPC
+{# Loop over regions and resolutions and make new ancillaries as required #}
+{% for regn in REGNS %}
+    {% for resln in regn["reslns"] %}
+
+    [[{{ancil(regn, resln)}}]]
+        [[[environment]]]
+            ANCIL_TARGET_PATH = {{resln["ancildir"]}}
+        
+        {# Define path of grid namelists #}
+        {% if regn["std_model"]  == "predefined" and resln["vargrid"] == "variable" %}
+            HORIZ_GRID='{{resln["ancildir"]}}/grid.nl  {{resln["ancildir"]}}/horizgrid.nl'
+        {% else %}
+            HORIZ_GRID={{resln["ancildir"]}}/grid.nl
+        {% endif %}
+             VERT_LEV={{resln["ancildir"]}}/{{resln["levset"]}}
+        {# Define if grid is variable for CAP apps, to be removed when these are removed #}
+        {% if regn["std_model"]  == "predefined" and resln["vargrid"] == "variable" %}
+            CAPGRID={{resln["ancildir"]}}/grid.nl
+            CAPHORIZGRID={{resln["ancildir"]}}/horizgrid.nl
+            VARIABLE=T
+            variable=.true.            
+        {% else %}
+            CAPGRID={{resln["ancildir"]}}/grid.nl
+            CAPHORIZGRID=
+            VARIABLE=F
+        {% endif %}
+
+    {# CAP TOP #}
+        {% if regn["std_model"] == "custom" %}
+    [[{{ancil(regn, resln)}}_top]]
+        # Set up grid namelists for the CAP.
+        inherit = {{ancil(regn, resln)}},ANCIL_TOP
+        post-script = """
+                    cd {{resln["ancildir"]}} 
+                    cp $CYLC_SUITE_RUN_DIR/etc/vert_levs/{{resln["levset"]}} .
+                    ln -sf {{resln["levset"]}} vertlevs.nl
+                      """
+        [[[environment]]]
+            DEL_Y = {{resln["delta"][0]}}
+            DEL_X = {{resln["delta"][1]}}
+            FIRST_LAT = {{resln["corner"]["ND"][0]}}
+            FIRST_LON = {{resln["corner"]["ND"][1]}}
+            EG_FIRST_LAT = {{resln["corner"]["EG"][0]}}
+            EG_FIRST_LON = {{resln["corner"]["EG"][1]}}
+            NPTS_Y = {{resln["npts"][0]}}
+            NPTS_X = {{resln["npts"][1]}}
+            POLE_LAT = {{regn["pole"][0]}}
+            POLE_LON = {{regn["pole"][1]}}
+            ROT_GRID = .{{regn["rot_grid"]|lower}}.
+            NLEVS = {{(resln["levset"]|vert_levs)["nlevs"]}}
+        
+        {% else %} 
+        {# Predefined grid: Create a task to create dirs and copy ancil grids #}
+        [[{{ancil(regn, resln)}}_nocustom]]
+            inherit = {{ancil(regn, resln)}},ANCIL_TOP
+            script="""
+                    mkdir -p {{resln["ancildir"]}}
+                    cd {{resln["ancildir"]}}
+                    ln -sf {{resln["grid_path"]}} grid.nl
+                    {% if resln["vargrid"] == "variable" %}
+                    ln -sf {{resln["vargrid_path"]}} horizgrid.nl
+                    {% endif %}
+                    cp $CYLC_SUITE_RUN_DIR/etc/vert_levs/{{resln["levset"]}} .
+                    ln -sf {{resln["levset"]}} vertlevs.nl
+                   """
+        {% endif %}
+
+        {% if not CCI_MASK %}
+    [[{{ancil(regn, resln)}}_cap_mask]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_MASK
+        post-script = cd {{resln["ancildir"]}} && ln -sf {{qrparm_mask}} qrparm.mask
+        [[[environment]]]
+            MIN_LAKE_AREA = {{resln["min_lake_area"]}}
+            OFFSET_Y = {{regn["igbp_offset"][0]}}
+            OFFSET_X = {{regn["igbp_offset"][1]}}
+    
+        {% endif %}
+
+    {% if not USE_ANTS or resln["sstsmc_anc"] %}
+    {# CAP Vegfrac needed for SMC if ANTS #}                    
+    [[{{ancil(regn, resln)}}_cap_vegfrac]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_VEGFRAC
+           post-script = """
+                        cd {{resln["ancildir"]}}
+        {% if not USE_ANTS %}
+                        ln -sf qrparm.veg.frac_igbp qrparm.veg.frac
+        {%endif %}
+                        """
+        [[[environment]]]
+            OFFSET_Y = {{regn["igbp_offset"][0]}}
+            OFFSET_X = {{regn["igbp_offset"][1]}}
+            VERT_LEV = {{resln["ancildir"]}}/vertlevs.nl
+        {% if not USE_ANTS %}
+            ROSE_APP_OPT_CONF_KEYS = cap
+        {%endif %}
+    {%endif %}
+
+     [[{{ancil(regn, resln)}}_cap_orog]]
+        # Orography.
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_OROG
+        env-script = eval $(rose task-env)
+        {% if not resln["orog_srtm"] %}
+        post-script = cd {{resln["ancildir"]}} && ln -sf qrparm.orog qrparm.orog.mn
+        {% endif %}
+
+        {# now for ozone #}
+        {% if resln["3D_ancils"] %}
+
+    [[{{ancil(regn, resln)}}_cap_ozone]]
+        # Ozone.
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_OZONE
+        [[[environment]]]
+            NLEVS = {{(resln["levset"]|vert_levs)["nlevs"]}}
+        
+
+    {# Ad-hoc fix for ozone ancil datetime 
+    TO BE REMOVED once ported from CAP to ANTS
+    #}
+    [[{{ancil(regn, resln)}}_fix_time_cap_ozone]]
+        inherit = FIX_CAP_OZONE
+        {% if PORT_FILES %}                
+        pre-script= scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}//{{resln["name"]}}/qrclim.ozone.unfix {{resln["ancildir"]}}/qrclim.ozone.unfix
+        post-script="""
+                    scp {{resln["ancildir"]}}/qrclim.ozone $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}//{{resln["name"]}}/qrclim.ozone
+                    # Remove unfix
+                    rm -f {{resln["ancildir"]}}/qrclim.ozone.unfix
+                    ssh $(rose host-select $HPC_HOST) "rm -f ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}//{{resln["name"]}}/qrclim.ozone.unfix"
+                    """
+        {% endif %}
+        [[[environment]]]
+            ROSE_TASK_APP = fix_time_cap_ozone
+            ozone_file_in={{resln["ancildir"]}}/qrclim.ozone.unfix
+            ozone_file_out={{resln["ancildir"]}}/qrclim.ozone
+
+	{% endif %}
+
+    # These ancillaries are not used in standard nesting suite runs 
+    # but are required when USE_OSTIA is set
+
+            {% if resln["sstsmc_anc"] %}
+    [[{{ancil(regn, resln)}}_cap_sstice]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_SSTICE
+
+    [[{{ancil(regn, resln)}}_cap_smcsnow]]
+        inherit = {{ancil(regn, resln)}},ANCIL_CAP_SMCSNOW
+            {% endif %}
+
+    [[{{ancil(regn, resln)}}_versions]]
+        # Creates an ancillary versions file cataloguing the ancillary files
+        # for this resolution. This can be pointed to by subsequent nesting
+        # suite runs to save having to re-make ancillaries every time the
+        # suite is run.
+        inherit = {{ancil(regn, resln)}},ANCIL_VERSIONS
+        script = setup_ancil_versions {{resln["ancildir"]}}
+
+        {# KGOs #}
+	    {% if KGO_TEST %}
+    [[rose_ana_{{ancil(regn, resln)}}]]
+        inherit = ROSE_ANA,HOST_HPC
+        [[[environment]]]
+            DATADIR= share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/
+            ROSE_APP_OPT_CONF_KEYS={{kgo_opt(regn, resln)}}
+            ROSE_TASK_APP = rose_ana_ancil
+        {% endif %}
+
+        {# Archiving  #}
+	    {% if ARCHIVE_ANCILS %}
+    [[{{ancil(regn, resln)}}_archive]]
+        inherit = {{ancil(regn, resln)}}, ARCHIVE
+        [[[environment]]]
+            ROSE_TASK_APP = archive
+            REGN = {{regn["name"]}}
+            RESN = {{resln["name"]}}
+        {% endif %}
+    {% endfor %} {# ...for resln in regn["reslns"] #}
+{% endfor %} {# ...for regn in REGNS #}
+
+{#### ADD ADITIONAL FILES ####}
+
+{% if USE_ANTS %}
+    {%include "suite-runtime/ants.rc" %}
+{% else %}
+    {%include "suite-runtime/cap.rc" %}
+{% endif %}
+
+{% if USE_UKCA %}
+    {%include "suite-runtime/ukca.rc" %}
+{% endif %}
+
+{% if MAKE_LFRIC %}
+    {%include "suite-runtime/lfric.rc" %}
+{% endif %}

@@ -1,0 +1,195 @@
+{% set HPC_HOST = "" %}
+{#% set SERIALQ = "shared" %#}
+{% set SERIAL_RUN_CMD = "mpiexec" %}
+{% set PARALLEL_RUN_CMD = "aprun" %}
+{% set IDL_SERVER = "" %}
+{% set LINUX_RUN_CMD = "slurm" %}
+
+[runtime]
+    [[HOST_LOCAL]]
+        [[[remote]]]
+            host = $localhost
+        [[[job]]]
+            batch system = background
+            execution time limit = PT2M
+        [[[directives]]]
+            --mem = 500
+            --ntasks = 1
+
+    [[HOST_IDL]]
+        [[[remote]]]
+            host = {{ IDL_SERVER|default('w-mauivlab01.maui.niwa.co.nz') }}
+        [[[job]]]
+            batch system = {{LINUX_RUN_CMD}}
+            execution time limit = PT30M
+        [[[directives]]]
+            --partition = nesi_prepost
+            --account = niwa00004
+            --job-name  = ras_idl_task
+            --mem = 70000
+            --ntasks = 4
+
+    [[HOST_HPC]]
+        [[[remote]]]
+            host = {{ HPC_HOST|default('w-mauivlab01.maui.niwa.co.nz') }}
+        [[[job]]]
+            batch system = slurm
+            execution time limit = PT10M
+        [[[directives]]] 
+            # Default directives.
+            --partition = nesi_prepost
+            --account = niwa00004
+            --job-name  = ras_hpc_task
+            --mem       = 2000
+
+    [[HOST_ANTS_SERIAL]]
+        inherit = HOST_IDL
+        [[[environment]]]
+           HPC_HOST = {{HPC_HOST}}        
+
+    [[HOST_ANTS_MPP]]
+        inherit = HOST_IDL
+        [[[remote]]]
+            host = {{ IDL_SERVER|default('w-mauivlab01.maui.niwa.co.nz') }}
+        [[[job]]]
+            batch system = slurm
+        [[[directives]]]
+            # Number of cores
+            --ntasks = 9
+            # Job name
+            --job-name=python_multiprocessing
+            # Memory required
+            --mem = 90GB
+            # set max wallclock time (HH:MM:SS)
+            --time=00:30:00
+        [[[environment]]]
+           HPC_HOST = {{HPC_HOST}}
+
+    [[ANCIL_LOCAL]]
+        [[[environment]]]
+            HPC_HOST = {{HPC_HOST}}
+
+    [[ANCIL_CAP]]
+        init-script = module load cray-snplauncher
+        [[[environment]]]
+            ROSE_LAUNCHER = {{SERIAL_RUN_CMD}}
+            ROSE_LAUNCHER_PREOPTS = -n 1
+ 
+    [[ANCIL_CAP_MASK]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 10G
+        [[[job]]]
+            execution time limit = PT20M
+
+    [[ANCIL_CAP_OROG]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 15G
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_VEGFRAC]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 50G
+        [[[job]]]
+            execution time limit = PT2H
+
+    [[ANCIL_CAP_OZONE]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 5G
+        [[[job]]]
+            execution time limit = PT30M
+
+    [[ANCIL_CAP_AERO]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 5G
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_LAND]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 5G
+        [[[job]]]
+            execution time limit = PT30M
+
+    [[ANCIL_CAP_SSTICE]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 10G
+        [[[job]]]
+            execution time limit = PT1H
+
+    [[ANCIL_CAP_SMCSNOW]]
+        [[[directives]]]
+            --ntasks = 1
+            --mem = 10G
+        [[[job]]]
+            execution time limit = PT20M
+
+
+    [[MASK_OVERRIDES]]
+        pre-script = """
+export PYTHONPATH=$PYTHONPATH:~hadts/test/mule_editmask/lib/:
+export PATH=$PATH:~hadts/test/mule_editmask/bin
+       """
+
+{% if USE_UKCA %}
+    [[ANCIL_CAP_SULPDMS]]
+        [[[directives]]]   
+             --ntasks = 1
+             --mem = 10G
+        [[[job]]]
+            execution time limit = PT20M
+ 
+     [[ANCIL_CAP_CHLORO]]
+        [[[directives]]]
+             --ntasks = 1
+             --mem = 10G
+        [[[job]]]
+            execution time limit = PT20M
+ 
+     [[ANCIL_UKCA]]
+         init-script = module load scitools
+        [[[environment]]]
+            ROSE_LAUNCHER = {{SERIAL_RUN_CMD}}
+            ROSE_LAUNCHER_PREOPTS = -n 1
+        [[[directives]]]   
+             --ntasks = 1
+             --mem = 32G
+        [[[job]]]
+            execution time limit = PT40M
+
+     {% for regn in REGNS %}
+          {% for resln in regn["reslns"] %}
+
+    [[{{ancil(regn, resln)}}_ukca_s]]
+        [[[directives]]]
+             --ntasks = 1
+             --mem = 6G
+        [[[job]]]
+            execution time limit = PT10M
+
+          {% endfor %}
+    {% endfor %}
+{% endif %}
+
+{# KGOs #}
+{% if KGO_TEST %}
+    [[ROSE_ANA]]
+        pre-script = "echo 'need to source the environment for comparisons'"
+        [[[job]]]
+            execution time limit = PT12M
+        [[[directives]]]
+             --ntasks = 1
+             --mem = 20G
+{% endif %}
+{# Archiving #}
+{% if ARCHIVE_ANCILS %}
+    [[ARCHIVE]]
+        pre-script = "echo 'archiving'"
+{% endif %}

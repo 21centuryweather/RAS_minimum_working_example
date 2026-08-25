@@ -1,0 +1,153 @@
+# Site-specific configuration for MSS Utama
+
+# These CPU counts may need to be increased for very large jobs,
+# they are tested at a grid size of 2000x2000
+#
+# Using more CPUs is mostly to get more memory, ANTS tasks do not
+# parallelise well so any speed increase will most likely be minimal
+#
+# Very small jobs can set MSS_QUEUE="background" which will run on the
+# login node with one cpu
+
+{% set CAP_NCPUS = 8 %}
+{% set ANTS_NCPUS = 4 %}
+{% set REGRID_NCPUS = 20 %}
+
+# Correct value for normal and express queues
+{% set MSS_MEM_GB_PER_CPU = 4 %}
+
+[runtime]
+    [[root]]
+        [[[events]]]
+            mail events = 
+        [[[environment]]]
+            # Local Jasmin TIDS mirror
+            # TIDS = /g/data/access/TIDS
+            ROSE_TASK_N_JOBS = ${PBS_NCPUS:-1}
+            ANTS_NPROCESSES = 1 # ${PBS_NCPUS:-1} # This ants is broken for ANTS_NPROCESSES > 1
+
+    [[HOST_LOCAL]]
+        [[[remote]]]
+            host = {{ ROSE_ORIG_HOST }}
+        [[[job]]]
+            batch system = background
+            execution time limit = PT10M
+
+    [[HOST_HPC]]
+        init-script = """
+        module load CAP/9.2
+        # ants module is loaded in site/mss-utama/python_env
+        ulimit -s unlimited
+        """
+        [[[remote]]]
+            host = {{ ROSE_ORIG_HOST }}
+        [[[job]]]
+            batch system = background
+            execution time limit = PT10M
+            execution retry delays =
+            submission retry delays =
+        [[[directives]]]
+            -q = {{MSS_QUEUE}}
+            {{ "-P =" ~ MSS_PROJECT if MSS_PROJECT != "" else ""}}
+            -l select=1:ncpus=1
+            -W umask = 0022
+
+    [[HOST_ANTS_MPP]]
+        inherit = HOST_HPC
+        [[[job]]]
+            {% if MSS_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -l select=1:ncpus={{ANTS_NCPUS}}
+
+    [[HOST_IDL]]
+        inherit = HOST_HPC
+
+    [[HOST_ANTS_SERIAL]]
+        inherit = HOST_HPC
+
+    [[ANCIL_CAP]]
+        # vegfrac, orog, ozone, sstice, smcsnow
+        inherit = HOST_HPC
+        [[[job]]]
+            {% if MSS_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -l select=1:ncpus={{CAP_NCPUS}}
+
+    [[ANCIL_AERO]]
+        # biog, biom, blck, dust, ocff, sslt, sulp
+        [[[job]]]
+            {% if MSS_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT2H
+            {% endif %}
+        [[[directives]]]
+            -q = rnd
+            -l select=1:ncpus={{REGRID_NCPUS}}
+
+    [[ANCIL_MEAN_OROG]]
+        [[[job]]]
+            {% if MSS_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT1H
+            {% endif %}
+        [[[directives]]]
+            -q = rnd
+            -l select=1:ncpus={{REGRID_NCPUS}}
+
+{% if USE_UKCA %}
+     {% if not UKCA_FROM_ANTS %}
+    [[ANCIL_UKCA]]
+        # ukca_s, ukca_c, ukca_ox
+        init-script = """
+        module unload um_env
+        source  /project/app/conda_env/ants/1.0.0/bin/activate
+        ulimit -s unlimited
+        """
+        [[[job]]]
+            {% if MSS_QUEUE == "background" %}
+            batch system = background
+            {% else %}
+            batch system = pbs
+            execution time limit = PT2H
+            {% endif %}
+        [[[directives]]]
+            -q = rnd
+            -l select=1:ncpus={{REGRID_NCPUS}}
+     {% endif %}
+{% endif %}
+
+    [[ANCIL_VEG_FUNC]]
+        # lai, canopy_heights
+        [[[job]]]
+            execution time limit = PT120M
+
+    [[ANCIL_ANTS]]
+        inherit = None, HOST_ANTS_SERIAL
+
+    [[ANCIL_TOP]]
+        [[[job]]]
+            batch system = background
+
+    [[ANCIL_VERSIONS]]
+        [[[job]]]
+            batch system = background
+
+    [[ROSE_ANA]]
+        init-script = """
+        module load mule
+        ulimit -s unlimited
+        """

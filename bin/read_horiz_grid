@@ -1,0 +1,116 @@
+#!/usr/bin/env python
+
+import argparse
+
+def parse_args():
+    '''Parses and returns command line arguments.'''
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Read horizontal grid namelist file")
+
+    # Required arguments    
+    parser.add_argument("grid_file", 
+                        help="Name of horizontal grid namelist file")
+
+    # Optional arguments
+    parser.add_argument("--new_dynamics", 
+                        action="store_true", 
+                        #default=False,
+                        help="Return grid parameters for New Dynamics")
+
+    parser.add_argument("--variable", 
+                        action="store_true", 
+                        #default=False,
+                        help="Return grid parameters for variable grid")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    return args
+
+def get_grid_parameters(grid_file, variable):
+    # Initialise
+    if variable:
+        grid_params = {"npts_x": None,
+                       "npts_y": None,
+                       "pole_lon": None,
+                       "pole_lat": None}
+    else:
+        grid_params = {"npts_x": None,
+                       "npts_y": None,
+                       "pole_lon": None,
+                       "pole_lat": None,
+                       "first_lon": None,
+                       "first_lat": None,
+                       "del_x": None,
+                       "del_y": None}
+
+    try:
+        with open(grid_file) as ifp:
+            lines = ifp.readlines()
+            lines = ",".join([line for line in lines])
+            lines = lines.replace(",\n", "") 
+            lines = lines.replace(",/\n", "") 
+            lines = lines.replace("\n", "") 
+            lines = lines.split(",")
+            for line in lines:
+                if "POINTS_LAMBDA_TARG" in line.upper():
+                    grid_params["npts_x"] = int(line.split("=")[1])
+                if "POINTS_PHI_TARG" in line.upper():
+                    grid_params["npts_y"] = int(line.split("=")[1])
+                if "LAMBDA_POLE" in line.upper():
+                    grid_params["pole_lon"] = float(line.split("=")[1])
+                if "PHI_POLE" in line.upper():
+                    grid_params["pole_lat"] = float(line.split("=")[1])
+                if "LAMBDA_ORIGIN_TARG" in line.upper():
+                    grid_params["first_lon"] = float(line.split("=")[1])
+                if "PHI_ORIGIN_TARG" in line.upper():
+                    grid_params["first_lat"] = float(line.split("=")[1])
+                if "DELTA_LAMBDA_TARG" in line.upper():
+                    grid_params["del_x"] = float(line.split("=")[1])
+                if "DELTA_PHI_TARG" in line.upper():
+                    grid_params["del_y"] = float(line.split("=")[1])
+    except IOError:
+        raise IOError("Problem reading file {0:s}".format(grid_file))
+   
+    return grid_params    
+
+def main(): 
+    # Parse command line arguments 
+    args = parse_args()
+      
+    # Read the grid parameters from the horizontal grid namelist file
+    grid_params = get_grid_parameters(args.grid_file, args.variable)
+    if any([param is None for param in grid_params.values()]):
+        print(grid_params)
+        raise ValueError("Could not read all required grid parameters " 
+                         "from namelist file {0:s}".format(args.grid_file))
+        
+    if args.variable:
+        # Print variable resolution grid parameters to command line
+        print ("{0:d},{1:d},{2:.10f},{3:.10f}".format(grid_params["npts_y"], 
+                                                grid_params["npts_x"],
+                                                grid_params["pole_lat"], 
+                                                grid_params["pole_lon"]))
+
+    else:        
+        # first_lat/first_lon define the bottom left corner of a New 
+        # Dynamics grid as that is what is used by the CAP when generating
+        # ancillaries. Convert to an ENDGAME grid if required (default)
+        if not args.new_dynamics:
+            grid_params["first_lat"] -= (0.5 * grid_params["del_y"])
+            grid_params["first_lon"] -= (0.5 * grid_params["del_x"])
+
+        # Print fixed resolution grid parameters to command line
+        print ("{0:d},{1:d},{2:.10f},{3:.10f},"
+               "{4:.10f},{5:.10f},{6:.10f},{7:.10f}".format(grid_params["npts_y"], 
+                                                grid_params["npts_x"],
+                                                grid_params["pole_lat"], 
+                                                grid_params["pole_lon"],
+                                                grid_params["first_lat"], 
+                                                grid_params["first_lon"],
+                                                grid_params["del_y"], 
+                                                grid_params["del_x"]))
+                                             
+if __name__=='__main__':
+    main()

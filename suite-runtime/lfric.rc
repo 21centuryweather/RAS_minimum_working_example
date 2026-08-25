@@ -1,0 +1,233 @@
+
+    # LFRIC mesh generation.
+
+    [[BUILD_HPC_LFRIC]]
+        inherit = BUILD, HOST_HPC
+        [[[environment]]]
+            ROSE_TASK_N_JOBS = 6
+
+    [[fcm_make_lfric]]
+        inherit = BUILD_HPC_LFRIC, LFRIC_ENV
+        [[[environment]]]
+            ROSE_TASK_APP = fcm_make_lfric
+            ROSE_TASK_OPTIONS = "--ignore-lock"
+
+    [[build_mesh_tools]]
+        inherit = COMPILE
+        [[[environment]]]
+            FCM_MAKE_ROOT    = {{LFRIC_EXEC_DIR}}
+            LFRIC_ROOT       = $FCM_MAKE_ROOT/extract/lfric_core
+            SOURCE_DIRECTORY = $LFRIC_ROOT/mesh_tools
+            BIN_DIR          = $FCM_MAKE_ROOT/build/bin
+
+    [[MESHES]]
+        {% for regn in REGNS %}
+            {% for resln in regn["reslns"] %}
+
+                [[generate_mesh_{{regn["name"]}}_{{resln["name"]}}]]
+                    inherit = MESHES, HOST_HPC, LFRIC_ENV
+                    env-script = """
+                        eval $(rose task-env)
+                        {% if regn["std_model"]  == "predefined" and resln["vargrid"] == "variable" %}
+                            GRID_PARAM=$($CYLC_SUITE_RUN_DIR/bin/read_horiz_grid {{resln["ancildir"]}}/grid.nl --variable)
+                        {% else %}
+                            GRID_PARAM=$($CYLC_SUITE_RUN_DIR/bin/read_horiz_grid {{resln["ancildir"]}}/grid.nl)
+                            FIRST_LAT=$(echo $GRID_PARAM | cut -f5 -d,)
+                            FIRST_LON=$(echo $GRID_PARAM | cut -f6 -d,)
+                            DEL_Y=$(echo $GRID_PARAM | cut -f7 -d,)
+                            DEL_X=$(echo $GRID_PARAM | cut -f8 -d,)
+                        {% endif %}
+                        NPTS_Y=$(echo $GRID_PARAM | cut -f1 -d,)
+                        NPTS_X=$(echo $GRID_PARAM | cut -f2 -d,)
+                        POLE_LAT=$(echo $GRID_PARAM | cut -f3 -d,)
+                        POLE_LON=$(echo $GRID_PARAM | cut -f4 -d,)
+                        LEN_X=$(awk "BEGIN {printf $DEL_X * $NPTS_X}")
+                        LEN_Y=$(awk "BEGIN {printf $DEL_Y * $NPTS_Y}")
+                        CENTRE_LAT=$(awk "BEGIN {printf $FIRST_LAT + ${LEN_Y}/2}")
+                        CENTRE_LON=$(awk "BEGIN {printf $FIRST_LON + ${LEN_X}/2}")
+                                """
+                    script = """
+                        mkdir -p $MESH_DIR
+                        rose task-run --app-key=generate_mesh --path= --path=$BIN_DIR
+                             """
+                [[[environment]]]
+                    POLE_LAT = $POLE_LAT
+                    POLE_LON = $POLE_LON
+                    ROTATED = $( if [[ $POLE_LAT == 90.0 ]] && [[ $POLE_LON == 0.0 ]] ; then echo ".false."; else echo ".true."; fi )
+                    NPTS_Y = $NPTS_Y
+                    NPTS_X = $NPTS_X       
+                    DEL_Y = $DEL_Y
+                    DEL_X = $DEL_X
+                    FIRST_LAT = $FIRST_LAT
+                    FIRST_LON = $FIRST_LON
+                    LEN_Y = $LEN_Y
+                    LEN_X = $LEN_X
+                    CENTRE_LAT = $CENTRE_LAT
+                    CENTRE_LON = $CENTRE_LON
+                    LFRIC_ROOT       = {{LFRIC_EXEC_DIR}}/extract/lfric
+                    SOURCE_DIRECTORY = $LFRIC_ROOT/mesh_tools
+                    BIN_DIR          = {{LFRIC_EXEC_DIR}}/build/bin
+                    ROSE_LAUNCHER = mpiexec
+                    DESTINATION_DIRECTORY = $ROSE_DATA
+                    MESH_DIR = $ROSE_DATA/meshes/
+                    OUTPUT_FILE_PREFIX = $MESH_DIR/mesh_{{regn["name"]}}_{{resln["name"]}}
+
+                [[generate_mesh_{{regn["name"]}}_{{resln["name"]}}_MG]]
+                    inherit = MESHES, HOST_HPC, LFRIC_ENV
+                    env-script = """
+                    eval $(rose task-env)
+                    {% if regn["std_model"]  == "predefined" and resln["vargrid"] == "variable" %}
+                        GRID_PARAM=$($CYLC_SUITE_RUN_DIR/bin/read_horiz_grid {{resln["ancildir"]}}/grid.nl --variable)
+                    {% else %}
+                        GRID_PARAM=$($CYLC_SUITE_RUN_DIR/bin/read_horiz_grid {{resln["ancildir"]}}/grid.nl)
+                        FIRST_LAT=$(echo $GRID_PARAM | cut -f5 -d,)
+                        FIRST_LON=$(echo $GRID_PARAM | cut -f6 -d,)
+                        DEL_Y=$(echo $GRID_PARAM | cut -f7 -d,)
+                        DEL_X=$(echo $GRID_PARAM | cut -f8 -d,)
+                    {% endif %}
+                    NPTS_Y=$(echo $GRID_PARAM | cut -f1 -d,)
+                    NPTS_X=$(echo $GRID_PARAM | cut -f2 -d,)
+                    POLE_LAT=$(echo $GRID_PARAM | cut -f3 -d,)
+                    POLE_LON=$(echo $GRID_PARAM | cut -f4 -d,)
+                    LEN_X=$(awk "BEGIN {printf $DEL_X * $NPTS_X}")
+                    LEN_Y=$(awk "BEGIN {printf $DEL_Y * $NPTS_Y}")
+                    CENTRE_LAT=$(awk "BEGIN {printf $FIRST_LAT + ${LEN_Y}/2}")
+                    CENTRE_LON=$(awk "BEGIN {printf $FIRST_LON + ${LEN_X}/2}")
+                    NPTS_X_ON_2=$(expr $NPTS_X / 2)
+                    NPTS_X_ON_4=$(expr $NPTS_X / 4)
+                    NPTS_X_ON_8=$(expr $NPTS_X / 8)
+                    NPTS_Y_ON_2=$(expr $NPTS_Y / 2)
+                    NPTS_Y_ON_4=$(expr $NPTS_Y / 4)
+                    NPTS_Y_ON_8=$(expr $NPTS_Y / 8)
+                             """
+                script = """
+                     mkdir -p $MESH_DIR
+                     rose task-run --app-key=generate_mesh --opt-conf-key=MG_4_levels --path= --path=$BIN_DIR
+                        """
+                [[[environment]]]
+                    POLE_LAT = $POLE_LAT
+                    POLE_LON = $POLE_LON
+                    ROTATED = $( if [[ $POLE_LAT == 90.0 ]] && [[ $POLE_LON == 0.0 ]] ; then echo ".false."; else echo ".true."; fi )
+	                NPTS_Y = $NPTS_Y
+                    NPTS_X = $NPTS_X       
+                    DEL_Y = $DEL_Y
+                    DEL_X = $DEL_X
+                    FIRST_LAT = $FIRST_LAT
+                    FIRST_LON = $FIRST_LON
+                    LEN_Y = $LEN_Y
+                    LEN_X = $LEN_X
+                    CENTRE_LAT = $CENTRE_LAT
+                    CENTRE_LON = $CENTRE_LON
+                    NPTS_X_ON_2 = $NPTS_X_ON_2
+                    NPTS_X_ON_4 = $NPTS_X_ON_4
+                    NPTS_X_ON_8 = $NPTS_X_ON_8
+                    NPTS_Y_ON_2 = $NPTS_Y_ON_2
+                    NPTS_Y_ON_4 = $NPTS_Y_ON_4
+                    NPTS_Y_ON_8 = $NPTS_Y_ON_8
+	                LFRIC_ROOT       = {{LFRIC_EXEC_DIR}}/extract/lfric
+                    SOURCE_DIRECTORY = $LFRIC_ROOT/mesh_tools
+	                BIN_DIR          = {{LFRIC_EXEC_DIR}}/build/bin
+                    ROSE_LAUNCHER = mpiexec
+                    DESTINATION_DIRECTORY = $ROSE_DATA
+                    MESH_DIR = $ROSE_DATA/meshes/
+                    OUTPUT_FILE_PREFIX = $MESH_DIR/mesh_{{regn["name"]}}_{{resln["name"]}}_MG
+
+            {% endfor %}
+        {% endfor %}
+
+{######################################################
+
+                UGRID remap tasks
+
+######################################################}
+
+
+
+[[REMAP_2_UGRID]]
+
+        {% for regn in REGNS %}
+            {% for resln in regn["reslns"] %}
+
+                {% if PORT_FILES%}                        
+            [[{{ancil(regn, resln)}}_copy_mesh]]
+                inherit= {{ancil(regn, resln)}},REMAP_2_UGRID, HOST_IDL
+                script="""
+                        #Copy mesh
+                        mkdir -p $ROSE_DATA/meshes/
+                        scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/meshes/mesh_{{regn["name"]}}_{{resln["name"]}}_MG.nc $ROSE_DATA/meshes/
+                       """
+                {% endif %}
+
+                {% for ancillary in ancils_2_ugrid %}
+
+                [[{{ancil(regn, resln)}}_{{ancillary}}_ugrid]]
+                    inherit = {{ancil(regn, resln)}},REMAP_2_UGRID, HOST_IDL, REMAP_2_UGRID_MPP
+                    # Copy CAP produced ancillaries to SPICE
+                    {% if PORT_FILES%}
+                        {% if ancillary in ["orog","sst","seaice"] %}
+                    pre-script= scp $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/{{ancils_2_ugrid[ancillary][0]}} {{resln["ancildir"]}}
+                        {% endif %}
+                    post-script = """
+                                ssh $(rose host-select $HPC_HOST) "mkdir -p \
+                                    ~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}"
+                                {# Copy to HPC #}
+                                {% if ancillary in ["sea"] %}
+                                scp {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/qrclim.sea.ugrid.nc  \
+                                {% elif ancillary in ["aerosols"] %}
+                                scp {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/qrclim.aerosols.ugrid.nc  \
+                                {% else %}
+                                scp {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0]}}.ugrid.nc  \
+                                {% endif %}
+                                $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}
+                                  """
+                    {% endif %}                    
+                    [[[environment]]]
+                        ROSE_TASK_APP = ancil_remap_ugrid
+                        ancil_file={{resln["ancildir"]}}/{{ancils_2_ugrid[ancillary][0]}}
+                        mesh_file=$ROSE_DATA/meshes/mesh_{{regn["name"]}}_{{resln["name"]}}_MG.nc
+                        outdir={{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/
+       
+                    {% if ancillary in ["orog"] %}
+                
+                {# NOTE FOR FUTURE DEVELOPMENT, SPLIT INSTALL_SOCRATES AND HORIZONTAL ANGLES TASK AS IN THE LFRIC GLOBAL SUITE#}
+                [[{{ancil(regn, resln)}}_add_horizon_angles]]
+                    inherit ={{ancil(regn, resln)}}, REMAP_2_UGRID, ANCIL_CREATE_OROG_HORIZON, HOST_IDL, SITE_SERIAL_SMALL_JOB
+                    {# The tasks are hardwired in this small script #}
+                    script="""
+                           cd $ROSE_DATA/etc/socrates
+                           mkdir -p bin
+                           chmod u+rwx bin/
+                           ./build_code $SOCRATES_PROG_ENV calc_horizon_angles
+                           source set_rad_env
+                           bin/calc_horizon_angles {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0]}}.ugrid.nc
+                           """
+                        {% if PORT_FILES %}
+                    post-script = """
+                                # Copy files back to XC40
+                                scp {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0]}}.ugrid.nc  \
+                                $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0]}}.ugrid.nc
+                                  """
+                        {% endif %}  
+                    {% endif %}
+
+                {% if ancillary in ["ozone","aerosols"] %}
+                {# postproc apps to add 0th level to aerosols & ozone #}
+                [[{{ancil(regn, resln)}}_{{ancillary}}_add_zero_lev_ugrid]]
+                    inherit = {{ancil(regn, resln)}},  ANCIL_UGANTS, LONG_UGRID_JOB, HOST_IDL
+                    {% if PORT_FILES%}
+                    post-script = """
+                                scp {{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0].split('.nc')[0]}}_L${NLEVS}_O${NLEVS}.ugrid.nc  \
+                                $(rose host-select $HPC_HOST):~/$ROSE_SUITE_DIR_REL/share/data/ancils/{{regn["name"]}}/{{resln["name"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0].split('.nc')[0]}}_L${NLEVS}_O${NLEVS}.ugrid.nc
+                                  """
+                    {% endif %}                    
+
+                    [[[environment]]]
+                        ROSE_TASK_APP=ancil_add_zero_lev_ugrid
+                        ANCIL_FILENAME_PATH={{resln["ancildir"]}}/lfric/{{ancils_2_ugrid[ancillary][1]}}/{{ancils_2_ugrid[ancillary][0].split('.nc')[0]}}
+                        NLEVS = {{(resln["levset"]|vert_levs)["nlevs"]}}
+                {% endif %}
+    
+                {% endfor %} {# end for over ancillaries #}
+
+            {% endfor %}
+        {% endfor %}

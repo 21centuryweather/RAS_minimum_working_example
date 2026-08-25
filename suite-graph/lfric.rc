@@ -1,0 +1,48 @@
+   {% for regn in REGNS %}
+      {% for resln in regn["reslns"] %}
+
+      {# Create LFRIC  MESH #}
+      fcm_make_lfric => build_mesh_tools => generate_mesh_{{regn["name"]}}_{{resln["name"]}} & \
+      generate_mesh_{{regn["name"]}}_{{resln["name"]}}_MG
+
+         {% if regn["std_model"] == "custom" %}
+     {{ancil(regn, resln)}}_top => \
+         {% else%}
+     {{ancil(regn, resln)}}_nocustom => \
+         {% endif %}
+         {% if PORT_FILES %}
+     {{ancil(regn, resln)}}_cpdir => \
+            generate_mesh_{{regn["name"]}}_{{resln["name"]}}_MG => {{ancil(regn, resln)}}_copy_mesh
+         {% endif %}
+         {% for ancillary in ancils_2_ugrid %}
+
+         {# Do UGRID #}
+            {# Trigger ugrid conversion once meshes are created 
+            (and copied if running on a diff. system) #}
+            {% if PORT_FILES %}
+         {{ancil(regn, resln)}}_copy_mesh \
+            {% else %}
+         generate_mesh_{{regn["name"]}}_{{resln["name"]}}_MG  \
+            {% endif %}
+         & {{ancil(regn, resln)}}_{{ancils_2_ugrid[ancillary][2]}}  => \
+         {{ancil(regn, resln)}}_{{ancillary}}_ugrid => \
+            {# POSTPROC tasks for ozone, aerosols and orog #}
+            {% if ancillary in ["ozone","aerosols"] %}
+         {{ancil(regn, resln)}}_{{ancillary}}_add_zero_lev_ugrid => \
+            {% elif ancillary in ["orog"] %}
+         {{ancil(regn, resln)}}_add_horizon_angles => \
+            {% endif %}
+         {{ancil(regn, resln)}}_ants_housekeep
+         
+         {% endfor %} {# end for over ancillaries #}
+
+   {# DO UM GLOMAPS 3-D climatologies #}
+   {# Move to ants.rc once UM starts using these #}
+   {% if resln["3D_ancils"] %}
+      # Do GLOMAPS aerorols    
+      {{ancil(regn, resln)}}_cap_orog => \
+      {{ancil(regn, resln)}}_clim_aerosol =>  {{ancil(regn, resln)}}_ants_housekeep
+   {% endif %}
+
+   {% endfor %}
+{% endfor %}

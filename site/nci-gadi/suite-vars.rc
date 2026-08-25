@@ -1,0 +1,3 @@
+{% set PORT_FILES = false %}
+{% set TRANSFORM_DIR = "/g/data/access/TIDS/UM/ancil/data/transforms" %}
+{% set KGO_DIR = "/g/data/access/KGO/suites/RAS/230643" %}
